@@ -1,0 +1,214 @@
+{
+  "name": "Yattapu Ganesh Kumar Reddy",
+  "roles": "Data Analyst | Power BI Developer | UI/UX Designer",
+  "bio": "Bridging the gap between raw data and strategic business decisions. I architect intuitive Power BI dashboards, conduct in-depth SQL & Python analytics, and design human-centered UI/UX experiences that transform complex metrics into actionable clarity.",
+  "resumeUrl": "https://drive.google.com/drive/folders/16Nog2CQTeKkkRSgY3Vjsf44GiOaEv_7z?usp=sharing",
+  "viewAllProjectsText": "View All Projects →",
+  "viewAllProjectsUrl": "https://drive.google.com/drive/folders/16Nog2CQTeKkkRSgY3Vjsf44GiOaEv_7z?usp=sharing",
+  "aboutHeadline": "Transforming Complex Data into Strategic Clarity & Human-Centered Experiences",
+  "aboutText": "I am a final-year Computer Science (Data Science) undergraduate with a dedicated passion for Data Analytics, Business Intelligence, and UI/UX Design. My dual foundation in statistical data engineering and user-centered design enables me to bridge the gap between complex raw metrics and executive decision-making.\n\nThroughout my academic journey and internship experience at Analytics Career Connect, I have engineered scalable Power BI dashboards, automated SQL data workflows, and designed sleek web and mobile interfaces in Figma. I believe that data is only as valuable as the decisions it empowers — which is why every dashboard and interface I craft is centered around clarity, speed, and real-world impact.\n\nWhether developing intricate DAX measures, exploring multi-variable datasets with Python, or crafting high-fidelity interactive prototypes, I bring rigorous analytical problem-solving and an eye for polished visual excellence to every project.",
+  "aboutQuote": "Good design makes data understandable. Great design makes it actionable.",
+  "aboutQuoteAuthor": "Yattapu Ganesh Kumar Reddy",
+  "aboutStats": [
+    {
+      "v": "03+",
+      "l": "Years Analytics & Design"
+    },
+    {
+      "v": "20+",
+      "l": "Dashboards & Projects Built"
+    },
+    {
+      "v": "100%",
+      "l": "Data Integrity & Impact"
+    }
+  ],
+  "email": "yattapuganesh123@gmail.com",
+  "phone": "+91 86390 71577",
+  "location": "Kadapa, Andhra Pradesh, India",
+  "openToText": "Internships | Full-time Jobs | Freelance Projects",
+  "contactHeadline": "Let's Build Something Amazing.",
+  "contactSubtext": "I'm open to opportunities, freelance projects or just a friendly chat about data, design or ideas. Let's connect and create real-world impact together.",
+  "linkedin": "https://www.linkedin.com/in/yattapugani",
+  "github": "https://github.com/yattapugani",
+  "behance": "https://behance.net",
+  "instagram": "https://instagram.com",
+  "stats": [
+    {
+      "icon": "📁",
+      "v": "20+",
+      "l": "Projects Completed",
+      "tint": "bg-sage/30 text-sage"
+    },
+    {
+      "icon": "📊",
+      "v": "30+",
+      "l": "Dashboards Built",
+      "tint": "bg-accent/30 text-accent"
+    },
+    {
+      "icon": "🎓",
+      "v": "5+",
+      "l": "Tools Mastered",
+      "tint": "bg-chart-4/25 text-chart-4"
+    },
+    {
+      "icon": "👥",
+      "v": "100%",
+      "l": "Learning & Growing",
+      "tint": "bg-terracotta/25 text-terracotta"
+    }
+  ],
+  "tools": [
+    {
+      "n": "Excel",
+      "i": "📗"
+    },
+    {
+      "n": "Power BI",
+      "i": "📊"
+    },
+    {
+      "n": "Tableau",
+      "i": "📈"
+    },
+    {
+      "n": "Looker Studio",
+      "i": "🔎"
+    },
+    {
+      "n": "SQL",
+      "i": "🗄️"
+    },
+    {
+      "n": "Python",
+      "i": "🐍"
+    },
+    {
+      "n": "Pandas",
+      "i": "🐼"
+    },
+    {
+      "n": "Figma",
+      "i": "🎨"
+    },
+    {
+      "n": "Canva",
+      "i": "🖌️"
+    },
+    {
+      "n": "Adobe Ps",
+      "i": "🖼️"
+    }
+  ],
+  "projects": [
+    {
+      "t": "E-Commerce Sales Analysis",
+      "d": "Interactive dashboard to track sales, profit, customer behavior and product performance.",
+      "tags": [
+        "Power BI",
+        "Data Analytics"
+      ],
+      "grad": "from-chart-4/30 to-accent/40"
+    },
+    {
+      "t": "Job Market Analysis (India)",
+      "d": "Scraped and analysed 50K+ job postings to find hiring trends, top skills and salary insights.",
+      "tags": [
+        "Looker Studio",
+        "Web Scraping"
+      ],
+      "grad": "from-ink to-primary/80"
+    },
+    {
+      "t": "Dashboard UI Design",
+      "d": "Modern and intuitive dashboard design template created in Figma.",
+      "tags": [
+        "Figma",
+        "UI/UX"
+      ],
+      "grad": "from-sage/40 to-chart-4/25"
+    },
+    {
+      "t": "Mobile App Concept",
+      "d": "Clean and minimal mobile app UI for a productivity platform.",
+      "tags": [
+        "Figma",
+        "Product Design"
+      ],
+      "grad": "from-accent/30 to-sand"
+    }
+  ],
+  "journey": [
+    {
+      "icon": "💼",
+      "role": "Data Analyst Intern",
+      "co": "Analytics Career Connect (ACC)",
+      "date": "Mar 2026 – Present",
+      "desc": "Working in a professional analytics environment, building real-world dashboards and conducting data-driven analysis to support business decision-making.",
+      "points": [
+        "Built Power BI dashboards for real business datasets",
+        "Performed advanced data cleaning, EDA and visualization",
+        "Collaborated with a cross-functional analytics team"
+      ]
+    },
+    {
+      "icon": "🎓",
+      "role": "B.Tech – CSE (Data Science)",
+      "co": "Vemu Institute of Technology, Kadapa",
+      "date": "2023 – 2027",
+      "desc": "Pursuing a 4-year undergraduate degree specializing in Data Science, studying machine learning, database systems, analytics, and software engineering fundamentals.",
+      "points": [
+        "Coursework in ML, DBMS, Statistics & Data Structures",
+        "Built 10+ academic and personal real-world projects",
+        "Active in hackathons, workshops and online certifications"
+      ]
+    },
+    {
+      "icon": "✨",
+      "role": "Freelance Designer",
+      "co": "Self-Initiated / Independent",
+      "date": "2024 – Present",
+      "desc": "Offering UI/UX design services, data visualization and branding to startups and individuals looking for polished, human-centered digital experiences.",
+      "points": [
+        "Designed UI/UX prototypes, posters and dashboards in Figma",
+        "Delivered creative branding assets for early-stage startups",
+        "Exploring freelance platforms and real-world client projects"
+      ]
+    }
+  ],
+  "certifications": [
+    {
+      "i": "📊",
+      "t": "Power BI Data Analyst",
+      "by": "Microsoft Learn",
+      "y": "2026",
+      "img": "",
+      "link": "https://learn.microsoft.com"
+    },
+    {
+      "i": "🗄️",
+      "t": "SQL (Advanced)",
+      "by": "HackerRank",
+      "y": "2026",
+      "img": "",
+      "link": "https://hackerrank.com"
+    },
+    {
+      "i": "📗",
+      "t": "Excel Skills for Business",
+      "by": "Coursera",
+      "y": "2026",
+      "img": "",
+      "link": "https://coursera.org"
+    },
+    {
+      "i": "📈",
+      "t": "Tableau Desktop Specialist",
+      "by": "Coursera",
+      "y": "2026",
+      "img": "",
+      "link": "https://coursera.org"
+    }
+  ]
+}

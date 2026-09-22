@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { savePortfolioContent, downloadPortfolioJson, copyPortfolioJson } from "@/services/portfolioSync";
 
 export interface ProjectItem {
   t: string;
@@ -80,7 +81,7 @@ interface EditPortfolioModalProps {
 const PASSWORD_KEY = "252525";
 
 export type EditorTab =
-  "profile" | "about" | "stats" | "projects" | "skills" | "experience" | "contact";
+  "profile" | "about" | "stats" | "projects" | "skills" | "experience" | "contact" | "sync";
 
 export function EditPortfolioModal({
   isOpen,
@@ -93,6 +94,8 @@ export function EditPortfolioModal({
   const [formData, setFormData] = useState<PortfolioContent>(content);
   const [activeTab, setActiveTab] = useState<EditorTab>(initialTab);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [saveStatusText, setSaveStatusText] = useState("");
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
   // Password protection state
   const [passwordInput, setPasswordInput] = useState("");
@@ -140,14 +143,21 @@ export function EditPortfolioModal({
     setPasswordInput("");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
+    const res = await savePortfolioContent(formData);
+    if (res.savedToDisk) {
+      setSaveStatusText("✓ Saved to laptop files! Push to GitHub to update mobile.");
+    } else {
+      setSaveStatusText("✓ Saved locally!");
+    }
     setSavedNotice(true);
     setTimeout(() => {
       setSavedNotice(false);
+      setSaveStatusText("");
       onClose();
-    }, 700);
+    }, 1100);
   };
 
   const handleReset = () => {
@@ -359,6 +369,7 @@ export function EditPortfolioModal({
                   { id: "stats", label: "📊 Stats" },
                   { id: "experience", label: "💼 Journey & Certs" },
                   { id: "contact", label: "✉️ Contact" },
+                  { id: "sync", label: "📱 Mobile & GitHub Sync" },
                 ] as const
               ).map((tab) => (
                 <button
@@ -1203,6 +1214,97 @@ export function EditPortfolioModal({
                 </div>
               )}
 
+              {/* TAB: MOBILE & GITHUB SYNC */}
+              {activeTab === "sync" && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">📱</span>
+                      <h4 className="text-sm font-bold text-cyan-300">
+                        Multi-Device & Mobile Synchronization
+                      </h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Understand why updates show on your laptop first, and how to publish them so your mobile phone and all visitors see them worldwide.
+                    </p>
+                  </div>
+
+                  {/* Why it happens explanation */}
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/5 space-y-2.5">
+                    <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <span>💡</span>
+                      <span>Why do changes appear on this laptop first?</span>
+                    </h5>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Your website is hosted on <strong className="text-white">GitHub Pages</strong>, which is a static hosting platform. When you edit and click "Save", changes are immediately stored in this laptop browser's storage. Mobile phones and other devices have their own separate browsers, so they load what is published to your <strong className="text-white">GitHub repository</strong>.
+                    </p>
+                  </div>
+
+                  {/* Auto-save status */}
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/5 space-y-3">
+                    <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <span>💻</span>
+                      <span>Laptop Auto-Save to Project Files</span>
+                    </h5>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      When running locally (<code className="text-cyan-300 bg-black/40 px-1.5 py-0.5 rounded">npm run dev</code>), clicking <strong>Save Changes</strong> automatically updates <code className="text-accent bg-black/40 px-1.5 py-0.5 rounded">src/data/portfolioData.json</code> on your computer disk!
+                    </p>
+                    <div className="p-2.5 rounded-xl bg-muted/60 border border-white/10 flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Auto-save to disk:</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold text-[11px]">
+                        ● Active on local dev
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions to update mobile & all devices */}
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/5 space-y-3">
+                    <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <span>🚀</span>
+                      <span>Publish Changes to Mobile & GitHub</span>
+                    </h5>
+                    <p className="text-xs text-muted-foreground">
+                      Use these one-click tools to export your changes or copy the data:
+                    </p>
+
+                    <div className="flex flex-wrap gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => downloadPortfolioJson(formData)}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-accent text-accent-foreground font-bold text-xs hover:opacity-90 active:scale-95 transition shadow-sm cursor-pointer"
+                      >
+                        <span>📥</span>
+                        <span>Download portfolioData.json</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await copyPortfolioJson(formData);
+                          if (ok) {
+                            setCopiedNotice(true);
+                            setTimeout(() => setCopiedNotice(false), 2000);
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-white/15 text-white font-semibold text-xs hover:bg-muted active:scale-95 transition shadow-sm cursor-pointer"
+                      >
+                        <span>📋</span>
+                        <span>{copiedNotice ? "✓ Copied to Clipboard!" : "Copy Full JSON"}</span>
+                      </button>
+                    </div>
+
+                    <div className="mt-3 p-3 rounded-xl bg-black/30 border border-white/10 text-xs font-mono text-cyan-300/90 space-y-1">
+                      <div className="text-[11px] text-muted-foreground font-sans font-semibold mb-1">
+                        Commands to push to GitHub (updates mobile phones worldwide in ~1 min):
+                      </div>
+                      <div>git add .</div>
+                      <div>git commit -m "Update portfolio settings"</div>
+                      <div>git push origin main</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Bottom Actions */}
               <div className="pt-4 border-t border-border/80 flex items-center justify-between gap-3">
                 <button
@@ -1212,7 +1314,16 @@ export function EditPortfolioModal({
                 >
                   Reset Website to Defaults
                 </button>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => downloadPortfolioJson(formData)}
+                    title="Export data file"
+                    className="px-3 py-2 rounded-xl bg-card border border-white/15 text-xs font-semibold hover:bg-muted transition flex items-center gap-1.5"
+                  >
+                    <span>📥</span>
+                    <span className="hidden sm:inline">Export JSON</span>
+                  </button>
                   <button
                     type="button"
                     onClick={onClose}
@@ -1222,9 +1333,9 @@ export function EditPortfolioModal({
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-accent text-accent-foreground font-bold text-xs hover:opacity-90 active:scale-95 transition shadow-sm"
+                    className="px-5 py-2.5 rounded-xl bg-accent text-accent-foreground font-bold text-xs hover:opacity-90 active:scale-95 transition shadow-sm cursor-pointer"
                   >
-                    {savedNotice ? "✓ Saved Live!" : "Save Changes"}
+                    {savedNotice ? (saveStatusText || "✓ Saved Live!") : "Save Changes"}
                   </button>
                 </div>
               </div>

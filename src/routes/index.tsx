@@ -3,6 +3,8 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import profileImg from "@/assets/ganesh.png";
 import { ScrollReveal } from "@/components/ScrollReveal";
 import type { PortfolioContent, EditorTab } from "@/components/EditPortfolioModal";
+import defaultPortfolioData from "@/data/portfolioData.json";
+import { savePortfolioContent } from "@/services/portfolioSync";
 
 // Heavy components: loaded after first paint so hero renders instantly
 const AiBackground = lazy(() =>
@@ -192,7 +194,9 @@ const DEFAULT_CONTENT: PortfolioContent = {
 };
 
 function Portfolio() {
-  const [content, setContent] = useState<PortfolioContent>(DEFAULT_CONTENT);
+  const [content, setContent] = useState<PortfolioContent>(
+    (defaultPortfolioData as unknown as PortfolioContent) || DEFAULT_CONTENT,
+  );
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editorInitialTab, setEditorInitialTab] = useState<EditorTab>("profile");
   const [active, setActive] = useState("home");
@@ -210,7 +214,12 @@ function Portfolio() {
     try {
       const saved = localStorage.getItem("portfolio_content_v4");
       if (saved) {
-        setContent({ ...DEFAULT_CONTENT, ...JSON.parse(saved) });
+        setContent({
+          ...(defaultPortfolioData as unknown as PortfolioContent),
+          ...JSON.parse(saved),
+        });
+      } else {
+        setContent(defaultPortfolioData as unknown as PortfolioContent);
       }
     } catch (e) {
       console.error(e);
@@ -269,13 +278,9 @@ function Portfolio() {
     return () => clearTimeout(timer);
   }, [typedRole, isDeleting, roleIndex, content.roles]);
 
-  const handleSaveContent = (updated: PortfolioContent) => {
+  const handleSaveContent = async (updated: PortfolioContent) => {
     setContent(updated);
-    try {
-      localStorage.setItem("portfolio_content_v4", JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
+    await savePortfolioContent(updated);
   };
 
   const handleResetContent = () => {
