@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, lazy, Suspense } from "react";
 import profileImg from "@/assets/ganesh.png";
 import { ScrollReveal } from "@/components/ScrollReveal";
-import type { PortfolioContent } from "@/components/EditPortfolioModal";
+import type { PortfolioContent, EditorTab } from "@/components/EditPortfolioModal";
 
 // Heavy components: loaded after first paint so hero renders instantly
 const AiBackground = lazy(() =>
@@ -50,6 +50,8 @@ const DEFAULT_CONTENT: PortfolioContent = {
   roles: "Data Analyst | Power BI Developer | UI/UX Designer",
   bio: "Bridging the gap between raw data and strategic business decisions. I architect intuitive Power BI dashboards, conduct in-depth SQL & Python analytics, and design human-centered UI/UX experiences that transform complex metrics into actionable clarity.",
   resumeUrl: "https://drive.google.com/drive/folders/16Nog2CQTeKkkRSgY3Vjsf44GiOaEv_7z?usp=sharing",
+  viewAllProjectsText: "View All Projects →",
+  viewAllProjectsUrl: "https://drive.google.com/drive/folders/16Nog2CQTeKkkRSgY3Vjsf44GiOaEv_7z?usp=sharing",
   aboutHeadline: "Transforming Complex Data into Strategic Clarity & Human-Centered Experiences",
   aboutText:
     "I am a final-year Computer Science (Data Science) undergraduate with a dedicated passion for Data Analytics, Business Intelligence, and UI/UX Design. My dual foundation in statistical data engineering and user-centered design enables me to bridge the gap between complex raw metrics and executive decision-making.\n\nThroughout my academic journey and internship experience at Analytics Career Connect, I have engineered scalable Power BI dashboards, automated SQL data workflows, and designed sleek web and mobile interfaces in Figma. I believe that data is only as valuable as the decisions it empowers — which is why every dashboard and interface I craft is centered around clarity, speed, and real-world impact.\n\nWhether developing intricate DAX measures, exploring multi-variable datasets with Python, or crafting high-fidelity interactive prototypes, I bring rigorous analytical problem-solving and an eye for polished visual excellence to every project.",
@@ -192,6 +194,7 @@ const DEFAULT_CONTENT: PortfolioContent = {
 function Portfolio() {
   const [content, setContent] = useState<PortfolioContent>(DEFAULT_CONTENT);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editorInitialTab, setEditorInitialTab] = useState<EditorTab>("profile");
   const [active, setActive] = useState("home");
   const [showTopBtn, setShowTopBtn] = useState(false);
   const [pageReady, setPageReady] = useState(false);
@@ -714,14 +717,28 @@ function Portfolio() {
                     Projects that Create Impact
                   </h2>
                 </div>
-                <a
-                  href={content.resumeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold px-4 py-2 rounded-full bg-card border border-white/15 text-white hover:bg-muted hover:border-amber-400/50 transition-all shadow-sm hover:scale-105"
-                >
-                  View All Projects →
-                </a>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <a
+                    href={content.viewAllProjectsUrl || content.resumeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold px-4 py-2 rounded-full bg-card border border-white/15 text-white hover:bg-muted hover:border-amber-400/50 transition-all duration-300 shadow-sm hover:scale-105 active:scale-95"
+                  >
+                    {content.viewAllProjectsText || "View All Projects →"}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditorInitialTab("projects");
+                      setIsEditModalOpen(true);
+                    }}
+                    title="Customize projects and button link"
+                    className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold px-3.5 py-2 rounded-full bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-300 transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <span className="text-sm">✏️</span>
+                    <span>Edit Projects</span>
+                  </button>
+                </div>
               </div>
             </ScrollReveal>
 
@@ -1047,7 +1064,10 @@ function Portfolio() {
       <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5">
         <button
           type="button"
-          onClick={() => setIsEditModalOpen(true)}
+          onClick={() => {
+            setEditorInitialTab("profile");
+            setIsEditModalOpen(true);
+          }}
           title="Portfolio Settings (Password: 252525)"
           aria-label="Portfolio Settings"
           className="h-11 px-4 rounded-full bg-card/90 backdrop-blur-xl border border-white/20 shadow-lift flex items-center gap-2 text-foreground hover:bg-accent hover:text-accent-foreground hover:scale-105 active:scale-95 transition-all cursor-pointer text-xs font-semibold group"
@@ -1077,6 +1097,7 @@ function Portfolio() {
       <Suspense fallback={null}>
         <EditPortfolioModal
           isOpen={isEditModalOpen}
+          initialTab={editorInitialTab}
           onClose={() => setIsEditModalOpen(false)}
           content={content}
           onSave={handleSaveContent}

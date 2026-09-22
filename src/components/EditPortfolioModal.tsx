@@ -44,6 +44,8 @@ export interface PortfolioContent {
   roles: string;
   bio: string;
   resumeUrl: string;
+  viewAllProjectsText?: string;
+  viewAllProjectsUrl?: string;
   aboutHeadline: string;
   aboutText: string;
   aboutQuote: string;
@@ -72,6 +74,7 @@ interface EditPortfolioModalProps {
   content: PortfolioContent;
   onSave: (updated: PortfolioContent) => void;
   onReset: () => void;
+  initialTab?: EditorTab;
 }
 
 const PASSWORD_KEY = "252525";
@@ -85,9 +88,10 @@ export function EditPortfolioModal({
   content,
   onSave,
   onReset,
+  initialTab = "profile",
 }: EditPortfolioModalProps) {
   const [formData, setFormData] = useState<PortfolioContent>(content);
-  const [activeTab, setActiveTab] = useState<EditorTab>("profile");
+  const [activeTab, setActiveTab] = useState<EditorTab>(initialTab);
   const [savedNotice, setSavedNotice] = useState(false);
 
   // Password protection state
@@ -102,6 +106,9 @@ export function EditPortfolioModal({
 
   useEffect(() => {
     if (isOpen) {
+      if (initialTab) {
+        setActiveTab(initialTab);
+      }
       const unlockedSession = sessionStorage.getItem("portfolio_editor_unlocked") === "true";
       if (unlockedSession) {
         setIsUnlocked(true);
@@ -111,7 +118,7 @@ export function EditPortfolioModal({
         setErrorMsg("");
       }
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
@@ -461,6 +468,65 @@ export function EditPortfolioModal({
                       <span className="text-sm">➕</span>
                       <span>Add Project</span>
                     </button>
+                  </div>
+
+                  {/* VIEW ALL PROJECTS BUTTON CUSTOMIZATION CARD */}
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <span>🔗 "View All Projects" Button Settings</span>
+                        </h5>
+                        <p className="text-[11px] text-muted-foreground">
+                          Customize the header button text and link destination shown in the Projects section
+                        </p>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold">
+                        Header CTA
+                      </span>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                          Button Text
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.viewAllProjectsText ?? "View All Projects →"}
+                          placeholder="View All Projects →"
+                          onChange={(e) =>
+                            setFormData({ ...formData, viewAllProjectsText: e.target.value })
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                          Button Link URL (GitHub, Drive, Portfolio, etc.)
+                        </label>
+                        <input
+                          type="url"
+                          className={inputClass}
+                          value={formData.viewAllProjectsUrl ?? formData.resumeUrl}
+                          placeholder="https://github.com/your-username"
+                          onChange={(e) =>
+                            setFormData({ ...formData, viewAllProjectsUrl: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Preview of Button */}
+                    <div className="pt-1 flex items-center gap-3">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                        Live Preview:
+                      </span>
+                      <span className="inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full bg-card border border-white/20 text-white shadow-sm">
+                        {formData.viewAllProjectsText || "View All Projects →"}
+                      </span>
+                    </div>
                   </div>
 
                   {formData.projects.map((p, idx) => (

@@ -6,6 +6,7 @@ interface ScrollRevealProps {
   variant?: "up" | "fade" | "scale" | "left" | "right";
   delay?: number;
   threshold?: number;
+  once?: boolean;
   style?: React.CSSProperties;
 }
 
@@ -14,7 +15,8 @@ export function ScrollReveal({
   className = "",
   variant = "up",
   delay = 0,
-  threshold = 0.1,
+  threshold = 0.08,
+  once = true,
   style = {},
 }: ScrollRevealProps) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -31,33 +33,40 @@ export function ScrollReveal({
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setInView(entry.isIntersecting);
+        if (entry.isIntersecting) {
+          setInView(true);
+          if (once) {
+            observer.unobserve(el);
+          }
+        } else if (!once) {
+          setInView(false);
+        }
       },
       {
         threshold,
-        rootMargin: "0px 0px -40px 0px",
+        rootMargin: "0px 0px -30px 0px",
       },
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [threshold]);
+  }, [threshold, once]);
 
   const getVariantStyles = () => {
     switch (variant) {
       case "fade":
         return inView ? "opacity-100" : "opacity-0";
       case "scale":
-        return inView ? "opacity-100 scale-100" : "opacity-0 scale-[0.97]";
+        return inView ? "opacity-100 scale-100" : "opacity-0 scale-[0.98]";
       case "left":
-        return inView ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-5";
+        return inView ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4";
       case "right":
-        return inView ? "opacity-100 translate-x-0" : "opacity-0 translate-x-5";
+        return inView ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4";
       case "up":
       default:
         return inView
           ? "opacity-100 translate-y-0 scale-100"
-          : "opacity-0 translate-y-5 scale-[0.99]";
+          : "opacity-0 translate-y-3.5 scale-[0.995]";
     }
   };
 
@@ -67,8 +76,8 @@ export function ScrollReveal({
       style={{
         ...style,
         transitionDelay: `${delay}ms`,
-        transitionDuration: "650ms",
-        transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+        transitionDuration: "680ms",
+        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
       }}
       className={`transition-all will-change-[transform,opacity] ${getVariantStyles()} ${className}`}
     >
