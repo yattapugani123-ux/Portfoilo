@@ -9,6 +9,64 @@ export const STORAGE_KEY = "portfolio_content_v4";
 export const GITHUB_TOKEN_KEY = "portfolio_github_token";
 export const GITHUB_REPO = "yattapugani123-ux/Portfoilo";
 
+export function deduplicateContent(data: PortfolioContent): PortfolioContent {
+  if (!data) return data;
+
+  // Deduplicate projects by title
+  const seenProjects = new Set<string>();
+  const projects = (data.projects || []).filter((p) => {
+    const key = (p.t || "").trim().toLowerCase();
+    if (!key || seenProjects.has(key)) return false;
+    seenProjects.add(key);
+    return true;
+  });
+
+  // Deduplicate tools / skills by name
+  const seenTools = new Set<string>();
+  const tools = (data.tools || []).filter((t) => {
+    const key = (t.n || "").trim().toLowerCase();
+    if (!key || seenTools.has(key)) return false;
+    seenTools.add(key);
+    return true;
+  });
+
+  // Deduplicate stats by label
+  const seenStats = new Set<string>();
+  const stats = (data.stats || []).filter((s) => {
+    const key = (s.l || "").trim().toLowerCase();
+    if (!key || seenStats.has(key)) return false;
+    seenStats.add(key);
+    return true;
+  });
+
+  // Deduplicate journey by role + company
+  const seenJourney = new Set<string>();
+  const journey = (data.journey || []).filter((j) => {
+    const key = `${(j.role || "").trim().toLowerCase()}_${(j.co || "").trim().toLowerCase()}`;
+    if (!key || seenJourney.has(key)) return false;
+    seenJourney.add(key);
+    return true;
+  });
+
+  // Deduplicate certifications by title + issuer
+  const seenCerts = new Set<string>();
+  const certifications = (data.certifications || []).filter((c) => {
+    const key = `${(c.t || "").trim().toLowerCase()}_${(c.by || "").trim().toLowerCase()}`;
+    if (!key || seenCerts.has(key)) return false;
+    seenCerts.add(key);
+    return true;
+  });
+
+  return {
+    ...data,
+    projects: projects.length > 0 ? projects : (data.projects || []),
+    tools: tools.length > 0 ? tools : (data.tools || []),
+    stats: stats.length > 0 ? stats : (data.stats || []),
+    journey: journey.length > 0 ? journey : (data.journey || []),
+    certifications: certifications.length > 0 ? certifications : (data.certifications || []),
+  };
+}
+
 /**
  * Fetch the freshest portfolio content:
  * 1. Checks Supabase cloud database first (if configured).
@@ -20,7 +78,7 @@ export async function fetchLatestPortfolioContent(): Promise<PortfolioContent | 
     try {
       const supabaseData = await fetchPortfolioFromSupabase();
       if (supabaseData && supabaseData.name) {
-        return supabaseData;
+        return deduplicateContent(supabaseData);
       }
     } catch (err) {
       console.warn("Could not fetch from Supabase, falling back to static file:", err);
@@ -45,7 +103,7 @@ export async function fetchLatestPortfolioContent(): Promise<PortfolioContent | 
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === "object" && data.name) {
-        return data as PortfolioContent;
+        return deduplicateContent(data as PortfolioContent);
       }
     }
   } catch (err) {
@@ -172,7 +230,7 @@ export async function pushToGitHub(
  * 5. If GitHub token is present, pushes to GitHub repo.
  */
 export async function savePortfolioContent(
-  content: PortfolioContent,
+  rawContent: PortfolioContent,
 ): Promise<{
   success: boolean;
   savedToSupabase: boolean;
@@ -181,6 +239,7 @@ export async function savePortfolioContent(
   supabaseError?: string;
   githubMessage?: string;
 }> {
+  const content = deduplicateContent(rawContent);
   // Always update timestamp
   content.updatedAt = Date.now();
 

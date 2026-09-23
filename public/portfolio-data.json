@@ -1,5 +1,5 @@
 {
-  "updatedAt": 1790155663840,
+  "updatedAt": 1790156834484,
   "name": "Yattapu Ganesh Kumar Reddy",
   "roles": "Data Analyst | Power BI Developer | UI/UX Designer",
   "bio": "Bridging the gap between raw data and strategic business decisions. I architect intuitive Power BI dashboards, conduct in-depth SQL & Python analytics, and design human-centered UI/UX experiences that transform complex metrics into actionable clarity.",
@@ -42,18 +42,6 @@
       "tint": "bg-sage/30 text-sage"
     },
     {
-      "icon": "📁",
-      "v": "20+",
-      "l": "Projects Completed",
-      "tint": "bg-sage/30 text-sage"
-    },
-    {
-      "icon": "📊",
-      "v": "30+",
-      "l": "Dashboards Built",
-      "tint": "bg-accent/30 text-accent"
-    },
-    {
       "icon": "📊",
       "v": "30+",
       "l": "Dashboards Built",
@@ -64,18 +52,6 @@
       "v": "5+",
       "l": "Tools Mastered",
       "tint": "bg-chart-4/25 text-chart-4"
-    },
-    {
-      "icon": "🎓",
-      "v": "5+",
-      "l": "Tools Mastered",
-      "tint": "bg-chart-4/25 text-chart-4"
-    },
-    {
-      "icon": "👥",
-      "v": "100%",
-      "l": "Learning & Growing",
-      "tint": "bg-terracotta/25 text-terracotta"
     },
     {
       "icon": "👥",
@@ -90,20 +66,8 @@
       "i": "📗"
     },
     {
-      "n": "Excel",
-      "i": "📗"
-    },
-    {
       "n": "Power BI",
       "i": "📊"
-    },
-    {
-      "n": "Power BI",
-      "i": "📊"
-    },
-    {
-      "n": "Tableau",
-      "i": "📈"
     },
     {
       "n": "Tableau",
@@ -114,20 +78,8 @@
       "i": "🔎"
     },
     {
-      "n": "Looker Studio",
-      "i": "🔎"
-    },
-    {
       "n": "SQL",
       "i": "🗄️"
-    },
-    {
-      "n": "SQL",
-      "i": "🗄️"
-    },
-    {
-      "n": "Python",
-      "i": "🐍"
     },
     {
       "n": "Python",
@@ -138,28 +90,12 @@
       "i": "🐼"
     },
     {
-      "n": "Pandas",
-      "i": "🐼"
-    },
-    {
-      "n": "Figma",
-      "i": "🎨"
-    },
-    {
       "n": "Figma",
       "i": "🎨"
     },
     {
       "n": "Canva",
       "i": "🖌️"
-    },
-    {
-      "n": "Canva",
-      "i": "🖌️"
-    },
-    {
-      "n": "Adobe Ps",
-      "i": "🖼️"
     },
     {
       "n": "Adobe Ps",
@@ -168,7 +104,7 @@
   ],
   "projects": [
     {
-      "t": "happy dashboard",
+      "t": "E-Commerce Sales Analysis",
       "d": "Interactive dashboard to track sales, profit, customer behavior and product performance.",
       "tags": [
         "Power BI",
@@ -177,13 +113,31 @@
       "grad": "from-chart-4/30 to-accent/40"
     },
     {
-      "t": "happy dashboard",
-      "d": "Interactive dashboard to track sales, profit, customer behavior and product performance.",
+      "t": "Job Market Analysis (India)",
+      "d": "Scraped and analysed 50K+ job postings to find hiring trends, top skills and salary insights.",
       "tags": [
-        "Power BI",
-        "Data Analytics"
+        "Looker Studio",
+        "Web Scraping"
       ],
-      "grad": "from-chart-4/30 to-accent/40"
+      "grad": "from-ink to-primary/80"
+    },
+    {
+      "t": "Dashboard UI Design",
+      "d": "Modern and intuitive dashboard design template created in Figma.",
+      "tags": [
+        "Figma",
+        "UI/UX"
+      ],
+      "grad": "from-sage/40 to-chart-4/25"
+    },
+    {
+      "t": "Mobile App Concept",
+      "d": "Clean and minimal mobile app UI for a productivity platform.",
+      "tags": [
+        "Figma",
+        "Product Design"
+      ],
+      "grad": "from-accent/30 to-sand"
     }
   ],
   "journey": [
@@ -200,18 +154,6 @@
       ]
     },
     {
-      "icon": "💼",
-      "role": "Data Analyst Intern",
-      "co": "Analytics Career Connect (ACC)",
-      "date": "Mar 2026 – Present",
-      "desc": "Working in a professional analytics environment, building real-world dashboards and conducting data-driven analysis to support business decision-making.",
-      "points": [
-        "Built Power BI dashboards for real business datasets",
-        "Performed advanced data cleaning, EDA and visualization",
-        "Collaborated with a cross-functional analytics team"
-      ]
-    },
-    {
       "icon": "🎓",
       "role": "B.Tech – CSE (Data Science)",
       "co": "Vemu Institute of Technology, Kadapa",
@@ -221,30 +163,6 @@
         "Coursework in ML, DBMS, Statistics & Data Structures",
         "Built 10+ academic and personal real-world projects",
         "Active in hackathons, workshops and online certifications"
-      ]
-    },
-    {
-      "icon": "🎓",
-      "role": "B.Tech – CSE (Data Science)",
-      "co": "Vemu Institute of Technology, Kadapa",
-      "date": "2023 – 2027",
-      "desc": "Pursuing a 4-year undergraduate degree specializing in Data Science, studying machine learning, database systems, analytics, and software engineering fundamentals.",
-      "points": [
-        "Coursework in ML, DBMS, Statistics & Data Structures",
-        "Built 10+ academic and personal real-world projects",
-        "Active in hackathons, workshops and online certifications"
-      ]
-    },
-    {
-      "icon": "✨",
-      "role": "Freelance Designer",
-      "co": "Self-Initiated / Independent",
-      "date": "2024 – Present",
-      "desc": "Offering UI/UX design services, data visualization and branding to startups and individuals looking for polished, human-centered digital experiences.",
-      "points": [
-        "Designed UI/UX prototypes, posters and dashboards in Figma",
-        "Delivered creative branding assets for early-stage startups",
-        "Exploring freelance platforms and real-world client projects"
       ]
     },
     {
@@ -269,20 +187,6 @@
       "link": "https://learn.microsoft.com"
     },
     {
-      "i": "📊",
-      "t": "Power BI Data Analyst",
-      "by": "Microsoft Learn",
-      "y": "2026",
-      "link": "https://learn.microsoft.com"
-    },
-    {
-      "i": "🗄️",
-      "t": "SQL (Advanced)",
-      "by": "HackerRank",
-      "y": "2026",
-      "link": "https://hackerrank.com"
-    },
-    {
       "i": "🗄️",
       "t": "SQL (Advanced)",
       "by": "HackerRank",
@@ -292,20 +196,6 @@
     {
       "i": "📗",
       "t": "Excel Skills for Business",
-      "by": "Coursera",
-      "y": "2026",
-      "link": "https://coursera.org"
-    },
-    {
-      "i": "📗",
-      "t": "Excel Skills for Business",
-      "by": "Coursera",
-      "y": "2026",
-      "link": "https://coursera.org"
-    },
-    {
-      "i": "📈",
-      "t": "Tableau Desktop Specialist",
       "by": "Coursera",
       "y": "2026",
       "link": "https://coursera.org"

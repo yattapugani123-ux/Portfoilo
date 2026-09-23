@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import profileImg from "@/assets/ganesh.png";
 import { ScrollReveal } from "@/components/ScrollReveal";
-import type { PortfolioContent, EditorTab } from "@/components/EditPortfolioModal";
+import type { PortfolioContent, EditorTab, ProjectItem } from "@/components/EditPortfolioModal";
 import defaultPortfolioData from "@/data/portfolioData.json";
 import {
   savePortfolioContent,
   fetchLatestPortfolioContent,
   reconcilePortfolioData,
   clearLocalPortfolioCache,
+  deduplicateContent,
 } from "@/services/portfolioSync";
 
 // Heavy components: loaded after first paint so hero renders instantly
@@ -207,6 +208,11 @@ function Portfolio() {
   const [active, setActive] = useState("home");
   const [showTopBtn, setShowTopBtn] = useState(false);
   const [pageReady, setPageReady] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null);
+
+  // Ref to track whether the edit modal is open so we skip
+  // visibility-change reloads while editing (prevents duplicate data)
+  const isEditModalOpenRef = useRef(false);
 
   const [typedRole, setTypedRole] = useState("");
   const [roleIndex, setRoleIndex] = useState(0);
@@ -227,10 +233,19 @@ function Portfolio() {
         const cloudData = await fetchLatestPortfolioContent();
         if (cloudData && cloudData.name) {
           // Got fresh cloud data — set once, no double render
-          setContent({ ...defaultData, ...cloudData });
+          const merged: PortfolioContent = deduplicateContent({
+            ...defaultData,
+            ...cloudData,
+            tools: cloudData.tools && cloudData.tools.length > 0 ? cloudData.tools : defaultData.tools,
+            stats: cloudData.stats && cloudData.stats.length > 0 ? cloudData.stats : defaultData.stats,
+            journey: cloudData.journey && cloudData.journey.length > 0 ? cloudData.journey : defaultData.journey,
+            certifications: cloudData.certifications && cloudData.certifications.length > 0 ? cloudData.certifications : defaultData.certifications,
+            projects: cloudData.projects && cloudData.projects.length > 0 ? cloudData.projects : defaultData.projects,
+          });
+          setContent(merged);
           // Also update localStorage cache for offline resilience
           try {
-            localStorage.setItem("portfolio_content_v4", JSON.stringify({ ...defaultData, ...cloudData }));
+            localStorage.setItem("portfolio_content_v4", JSON.stringify(merged));
           } catch {}
           return;
         }
@@ -243,20 +258,21 @@ function Portfolio() {
         const saved = localStorage.getItem("portfolio_content_v4");
         if (saved) {
           const localData = JSON.parse(saved);
-          setContent({ ...defaultData, ...localData });
+          setContent(deduplicateContent({ ...defaultData, ...localData }));
         } else {
-          setContent(defaultData);
+          setContent(deduplicateContent(defaultData));
         }
       } catch {
-        setContent(defaultData);
+        setContent(deduplicateContent(defaultData));
       }
     };
 
     loadData();
 
     // Re-sync when user switches back to this tab
+    // Skip reload if the edit modal is open to prevent duplicate data
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && !isEditModalOpenRef.current) {
         loadData();
       }
     };
@@ -328,9 +344,8 @@ function Portfolio() {
     return () => clearTimeout(timer);
   }, [typedRole, isDeleting, roleIndex, content.roles]);
 
-  const handleSaveContent = async (updated: PortfolioContent) => {
-    setContent(updated);
-    await savePortfolioContent(updated);
+  const handleSaveContent = (updated: PortfolioContent) => {
+    setContent(deduplicateContent(updated));
   };
 
   const handleResetContent = () => {
@@ -338,6 +353,18 @@ function Portfolio() {
       (defaultPortfolioData as unknown as PortfolioContent) || DEFAULT_CONTENT,
     );
     clearLocalPortfolioCache();
+  };
+
+  const openEditModal = () => {
+    isEditModalOpenRef.current = true;
+    setEditorInitialTab("profile");
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    // Delay resetting the ref so any pending visibility event is skipped
+    setTimeout(() => { isEditModalOpenRef.current = false; }, 400);
   };
 
   const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
@@ -786,7 +813,14 @@ function Portfolio() {
             <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {content.projects.map((p, idx) => (
                 <ScrollReveal key={p.t + idx} variant="up" delay={idx * 80}>
-                  <article className="rounded-3xl card-soft overflow-hidden hover:shadow-lift hover:-translate-y-2 transition-all duration-300 h-full flex flex-col backdrop-blur-md bg-card/90 border border-white/10 hover:border-amber-400/50 group card-ambient-breathe">
+                  <article
+                    className="rounded-3xl card-soft overflow-hidden hover:shadow-lift hover:-translate-y-2 transition-all duration-300 h-full flex flex-col backdrop-blur-md bg-card/90 border border-white/10 hover:border-amber-400/50 group card-ambient-breathe cursor-pointer"
+                    onClick={() => setSelectedProject(p)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => e.key === "Enter" && setSelectedProject(p)}
+                    aria-label={`View ${p.t} case study`}
+                  >
                     {/* Project image or gradient fallback */}
                     <div
                       className={`h-36 relative overflow-hidden ${!p.img ? `bg-gradient-to-br ${p.grad || "from-chart-4/30 to-accent/40"}` : ""}`}
@@ -809,6 +843,10 @@ function Portfolio() {
                       {p.img && (
                         <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent" />
                       )}
+                      {/* Case file badge */}
+                      <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm border border-white/10 text-[10px] font-bold text-white/80 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <span>📂</span> Case Study
+                      </div>
                     </div>
                     <div className="p-5 flex-1 flex flex-col justify-between">
                       <div>
@@ -827,14 +865,9 @@ function Portfolio() {
                         </h3>
                         <p className="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed">{p.d}</p>
                       </div>
-                      <a
-                        href={p.link || content.resumeUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-5 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-400 hover:text-amber-300 transition group-hover:translate-x-1 duration-200"
-                      >
-                        View Project <span>→</span>
-                      </a>
+                      <div className="mt-5 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-400 group-hover:text-amber-300 group-hover:translate-x-1 transition-all duration-200">
+                        View Case Study <span>→</span>
+                      </div>
                     </div>
                   </article>
                 </ScrollReveal>
@@ -1087,7 +1120,7 @@ function Portfolio() {
           <div className="flex flex-wrap items-center gap-4 text-xs">
             <button
               type="button"
-              onClick={() => setIsEditModalOpen(true)}
+              onClick={openEditModal}
               className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-accent transition-colors font-medium cursor-pointer"
             >
               <span>⚙️</span>
@@ -1105,10 +1138,7 @@ function Portfolio() {
       <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5">
         <button
           type="button"
-          onClick={() => {
-            setEditorInitialTab("profile");
-            setIsEditModalOpen(true);
-          }}
+          onClick={openEditModal}
           title="Portfolio Settings (Password: 252525)"
           aria-label="Portfolio Settings"
           className="h-11 px-4 rounded-full bg-card/90 backdrop-blur-xl border border-white/20 shadow-lift flex items-center gap-2 text-foreground hover:bg-accent hover:text-accent-foreground hover:scale-105 active:scale-95 transition-all cursor-pointer text-xs font-semibold group"
@@ -1139,12 +1169,378 @@ function Portfolio() {
         <EditPortfolioModal
           isOpen={isEditModalOpen}
           initialTab={editorInitialTab}
-          onClose={() => setIsEditModalOpen(false)}
+          onClose={closeEditModal}
           content={content}
           onSave={handleSaveContent}
           onReset={handleResetContent}
         />
       </Suspense>
+
+      {/* Project Case-File Detail Modal */}
+      {selectedProject && (
+        <ProjectDetailModal
+          project={selectedProject}
+          projects={content.projects}
+          currentIndex={content.projects.findIndex((p) => p.t === selectedProject.t)}
+          onSelectProject={setSelectedProject}
+          resumeUrl={content.resumeUrl}
+          onClose={() => setSelectedProject(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   PROJECT CASE-FILE DETAIL MODAL
+   Opens with a slide-up animation when a project card is tapped.
+   Matches the high-tech case-file design from the user's reference.
+───────────────────────────────────────────────────────── */
+function ProjectDetailModal({
+  project,
+  projects = [],
+  currentIndex = 0,
+  onSelectProject,
+  resumeUrl,
+  onClose,
+}: {
+  project: ProjectItem;
+  projects?: ProjectItem[];
+  currentIndex?: number;
+  onSelectProject?: (p: ProjectItem) => void;
+  resumeUrl: string;
+  onClose: () => void;
+}) {
+  // Close on Escape key, navigate on arrow keys
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft" && onSelectProject && projects.length > 1) {
+        const prevIdx = (currentIndex - 1 + projects.length) % projects.length;
+        onSelectProject(projects[prevIdx]);
+      }
+      if (e.key === "ArrowRight" && onSelectProject && projects.length > 1) {
+        const nextIdx = (currentIndex + 1) % projects.length;
+        onSelectProject(projects[nextIdx]);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, onSelectProject, currentIndex, projects]);
+
+  // Prevent background scroll while open
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  const total = Math.max(projects.length, 1);
+  const currentNum = String((currentIndex >= 0 ? currentIndex : 0) + 1).padStart(2, "0");
+  const totalNum = String(total).padStart(2, "0");
+  const primaryTag = project.tags[0] || "Analytics";
+
+  const handlePrev = () => {
+    if (onSelectProject && projects.length > 1) {
+      const idx = (currentIndex - 1 + projects.length) % projects.length;
+      onSelectProject(projects[idx]);
+    }
+  };
+
+  const handleNext = () => {
+    if (onSelectProject && projects.length > 1) {
+      const idx = (currentIndex + 1) % projects.length;
+      onSelectProject(projects[idx]);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(16px)" }}
+    >
+      <div
+        className="relative w-full max-w-2xl max-h-[94vh] flex flex-col bg-[#0a0a0f] border border-white/10 rounded-3xl shadow-[0_20px_70px_rgba(0,0,0,0.9)] overflow-hidden"
+        style={{
+          animation: "caseSlideUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) both",
+        }}
+      >
+        {/* Case-file header bar */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-white/[0.02] shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
+            <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-300">
+              CASE FILE · {currentNum} / {totalNum}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {projects.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  className="h-7 w-7 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-xs text-white/70 hover:text-white transition active:scale-95"
+                  title="Previous Project (Left Arrow)"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="h-7 w-7 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-xs text-white/70 hover:text-white transition active:scale-95"
+                  title="Next Project (Right Arrow)"
+                >
+                  ›
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-7 w-7 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-xs text-white/70 hover:text-white transition active:scale-95 ml-1"
+              title="Close (Escape)"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 min-h-0">
+          {/* Browser / Mockup Showcase Area */}
+          <div className="relative mx-4 sm:mx-6 mt-5 rounded-2xl border border-white/10 bg-[#12121a] overflow-hidden shadow-2xl">
+            {/* Browser Window Header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-[#181824]/90 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" />
+                <span className="ml-2 px-2.5 py-0.5 rounded bg-black/40 text-[10px] font-mono text-slate-400 border border-white/5 truncate max-w-[200px]">
+                  {primaryTag.toUpperCase()} · PLATFORM
+                </span>
+              </div>
+              <div className="text-[10px] font-mono text-slate-500">
+                https://portfolio.ganesh/project/{project.t.toLowerCase().replace(/[^a-z0-9]/g, "-")}
+              </div>
+            </div>
+
+            {/* Main Showcase Image / Interactive Screen */}
+            <div className="relative h-48 sm:h-64 w-full bg-gradient-to-br from-black/80 via-[#13141f] to-[#1c1c2b] flex items-center justify-center overflow-hidden">
+              {project.img ? (
+                <img
+                  src={project.img}
+                  alt={project.t}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ) : (
+                /* Sleek High-Tech Dashboard Mockup matching screenshot */
+                <div className="w-full h-full p-4 sm:p-6 flex flex-col justify-between relative select-none">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">📊</span>
+                      <span className="text-sm font-bold text-white tracking-wide">{project.t}</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold">
+                      ● LIVE SYSTEM
+                    </span>
+                  </div>
+
+                  {/* High-tech dashboard visualization cards */}
+                  <div className="grid grid-cols-3 gap-2 my-auto">
+                    <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
+                      <div className="text-[9px] font-mono text-slate-400">ANALYTICS ENGINE</div>
+                      <div className="text-xs font-bold text-amber-300 mt-1 truncate">{primaryTag}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
+                      <div className="text-[9px] font-mono text-slate-400">DATA ACCURACY</div>
+                      <div className="text-xs font-bold text-emerald-400 mt-1">99.8% Verified</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
+                      <div className="text-[9px] font-mono text-slate-400">COMPONENTS</div>
+                      <div className="text-xs font-bold text-cyan-300 mt-1">{project.tags.length} Modules</div>
+                    </div>
+                  </div>
+
+                  <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
+                    <div className="h-full w-2/3 bg-gradient-to-r from-amber-500 to-rose-500 rounded-full" />
+                  </div>
+                </div>
+              )}
+
+              {/* Carousel Side Arrows */}
+              {projects.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePrev}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-black/60 hover:bg-black/90 border border-white/15 text-white flex items-center justify-center text-sm backdrop-blur transition active:scale-95"
+                    aria-label="Previous Project"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-black/60 hover:bg-black/90 border border-white/15 text-white flex items-center justify-center text-sm backdrop-blur transition active:scale-95"
+                    aria-label="Next Project"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* 3 Thumbnail preview indicators at the bottom */}
+            <div className="flex items-center justify-center gap-2 py-2 bg-black/40 border-t border-white/5">
+              {projects.slice(0, 3).map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => onSelectProject && onSelectProject(p)}
+                  className={`h-6 px-3 rounded-md text-[10px] font-mono font-bold transition flex items-center gap-1.5 border ${
+                    p.t === project.t
+                      ? "bg-rose-500/20 text-rose-300 border-rose-500/60 shadow-[0_0_10px_rgba(244,63,94,0.3)]"
+                      : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                  <span className="truncate max-w-[80px]">{p.t}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Project Details section matching reference screenshot */}
+          <div className="px-5 sm:px-7 py-5 space-y-4">
+            {/* Red Year Tag + Title */}
+            <div>
+              <div className="text-rose-500 font-mono text-xs font-bold tracking-wider mb-1">
+                / {project.year || "2025"}
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
+                {project.t}
+              </h2>
+              <p className="mt-2 text-sm text-slate-300 leading-relaxed font-normal">
+                {project.d}
+              </p>
+            </div>
+
+            {/* 3 Top Spec Boxes matching screenshot */}
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                <div className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-1">
+                  {primaryTag.includes("BI") || primaryTag.includes("Power") ? "AI MODEL / TOOL" : "PLATFORM"}
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-white truncate">
+                  {project.model || project.tags[0] || "Custom Engine"}
+                </div>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                <div className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-1">
+                  AUTH / CLIENT
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-white truncate">
+                  {project.client || "Personal Project"}
+                </div>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                <div className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-1">
+                  FEATURES
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-white truncate">
+                  {project.tags.length} specs
+                </div>
+              </div>
+            </div>
+
+            {/* 2x2 Details Grid */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-3 rounded-2xl bg-white/[0.025] border border-white/10 flex items-start gap-2.5">
+                <span className="text-sm mt-0.5">👤</span>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400">CLIENT</div>
+                  <div className="text-xs font-bold text-white truncate mt-0.5">{project.client || "Personal Project"}</div>
+                </div>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/[0.025] border border-white/10 flex items-start gap-2.5">
+                <span className="text-sm mt-0.5">🎯</span>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400">ROLE</div>
+                  <div className="text-xs font-bold text-white truncate mt-0.5">{project.role || "Solo Developer"}</div>
+                </div>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/[0.025] border border-white/10 flex items-start gap-2.5">
+                <span className="text-sm mt-0.5">📅</span>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400">YEAR</div>
+                  <div className="text-xs font-bold text-white truncate mt-0.5">{project.year || "2025"}</div>
+                </div>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/[0.025] border border-white/10 flex items-start gap-2.5">
+                <span className="text-sm mt-0.5">✅</span>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400">STATUS</div>
+                  <div className="text-xs font-bold text-emerald-400 truncate mt-0.5">{project.status || "Shipped"}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Powertrain & Specs */}
+            <div>
+              <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 mb-2">
+                POWERTRAIN &amp; SPECS
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {project.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2.5 py-1 rounded-md bg-white/[0.05] border border-white/10 text-[10px] font-mono font-bold text-slate-300 uppercase tracking-wider"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer CTA matching screenshot */}
+        <div className="px-5 sm:px-7 py-4 border-t border-white/10 flex items-center gap-3 shrink-0 bg-[#0a0a0f]/90 backdrop-blur">
+          <a
+            href={project.link || resumeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black font-extrabold text-sm text-center hover:opacity-95 active:scale-98 transition shadow-[0_0_25px_rgba(245,158,11,0.35)] flex items-center justify-center gap-2"
+          >
+            <span>LIVE DEMO</span>
+            <span className="text-xs">↗</span>
+          </a>
+          <a
+            href={project.sourceLink || project.link || resumeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-white font-bold text-sm text-center active:scale-98 transition flex items-center justify-center gap-2"
+          >
+            <span>⌥</span>
+            <span>SOURCE</span>
+          </a>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes caseSlideUp {
+          from { opacity: 0; transform: translateY(50px) scale(0.96); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
     </div>
   );
 }

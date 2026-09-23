@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
+import { deduplicateContent } from "./portfolioSync";
 import type {
   PortfolioContent,
   ProjectItem,
@@ -118,7 +119,7 @@ export async function fetchPortfolioFromSupabase(): Promise<PortfolioContent | n
       certifications,
     };
 
-    return content;
+    return deduplicateContent(content);
   } catch (err) {
     console.error("Error fetching portfolio from Supabase:", err);
     return null;
@@ -130,7 +131,7 @@ export async function fetchPortfolioFromSupabase(): Promise<PortfolioContent | n
  * Upserts profile and synchronizes child tables.
  */
 export async function savePortfolioToSupabase(
-  content: PortfolioContent
+  rawContent: PortfolioContent
 ): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     return {
@@ -138,6 +139,8 @@ export async function savePortfolioToSupabase(
       error: "Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.",
     };
   }
+
+  const content = deduplicateContent(rawContent);
 
   try {
     // 1. Upsert Profile

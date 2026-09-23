@@ -19,6 +19,7 @@ import {
   savePortfolioToSupabase,
   fetchPortfolioFromSupabase,
 } from "@/services/supabasePortfolioService";
+import { deduplicateContent } from "@/services/portfolioSync";
 import type { User } from "@supabase/supabase-js";
 
 export interface ProjectItem {
@@ -27,7 +28,13 @@ export interface ProjectItem {
   tags: string[];
   grad?: string;
   link?: string;
+  sourceLink?: string;
   img?: string;
+  year?: string;
+  role?: string;
+  client?: string;
+  status?: string;
+  model?: string;
 }
 
 export interface ToolItem {
@@ -118,6 +125,13 @@ export function EditPortfolioModal({
   const [savedNotice, setSavedNotice] = useState(false);
   const [saveStatusText, setSaveStatusText] = useState("");
   const [copiedNotice, setCopiedNotice] = useState(false);
+
+  // Raw tag string per project index — lets the user type freely without
+  // the comma split removing their in-progress last tag
+  const [tagInputs, setTagInputs] = useState<string[]>(
+    () => content.projects.map((p) => p.tags.join(", "))
+  );
+  const [newTagInputs, setNewTagInputs] = useState<{ [key: number]: string }>({});
 
   // Password protection state
   const [passwordInput, setPasswordInput] = useState("");
@@ -229,8 +243,13 @@ export function EditPortfolioModal({
   };
 
   useEffect(() => {
-    setFormData(content);
-  }, [content]);
+    if (isOpen) {
+      setFormData(content);
+      // Re-sync raw tag strings when external content changes (e.g. after save)
+      setTagInputs(content.projects.map((p) => p.tags.join(", ")));
+      setNewTagInputs({});
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -311,8 +330,30 @@ export function EditPortfolioModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    const res = await savePortfolioContent(formData);
+
+    // Commit any raw tag strings and new tag inputs
+    const committedProjects = formData.projects.map((proj, idx) => {
+      let tags = [...proj.tags];
+      const raw = tagInputs[idx];
+      if (raw !== undefined && raw.trim()) {
+        const fromRaw = raw.split(",").map((s) => s.trim()).filter(Boolean);
+        tags = Array.from(new Set([...tags, ...fromRaw]));
+      }
+      const pendingNew = newTagInputs[idx];
+      if (pendingNew && pendingNew.trim()) {
+        const fromPending = pendingNew.split(",").map((s) => s.trim()).filter(Boolean);
+        tags = Array.from(new Set([...tags, ...fromPending]));
+      }
+      return { ...proj, tags };
+    });
+
+    const finalData = deduplicateContent({
+      ...formData,
+      projects: committedProjects,
+    });
+
+    onSave(finalData);
+    const res = await savePortfolioContent(finalData);
     if (res.savedToSupabase) {
       setSaveStatusText("✓ Saved to Supabase Cloud! Live globally across all devices.");
     } else if (res.supabaseError) {
@@ -330,6 +371,37 @@ export function EditPortfolioModal({
       setSaveStatusText("");
       onClose();
     }, 1500);
+  };
+
+  // Add a specific tag to a project
+  const handleAddTagToProject = (projIdx: number, tagToAdd: string) => {
+    const clean = tagToAdd.trim();
+    if (!clean) return;
+    const currentTags = formData.projects[projIdx]?.tags || [];
+    if (currentTags.some((t) => t.toLowerCase() === clean.toLowerCase())) return;
+    const newTags = [...currentTags, clean];
+    const nextProjects = [...formData.projects];
+    nextProjects[projIdx] = { ...nextProjects[projIdx], tags: newTags };
+    setFormData({ ...formData, projects: nextProjects });
+    setTagInputs((prev) => {
+      const copy = [...prev];
+      copy[projIdx] = newTags.join(", ");
+      return copy;
+    });
+  };
+
+  // Remove a specific tag from a project
+  const handleRemoveTagFromProject = (projIdx: number, tagIdxToRemove: number) => {
+    const currentTags = formData.projects[projIdx]?.tags || [];
+    const newTags = currentTags.filter((_, i) => i !== tagIdxToRemove);
+    const nextProjects = [...formData.projects];
+    nextProjects[projIdx] = { ...nextProjects[projIdx], tags: newTags };
+    setFormData({ ...formData, projects: nextProjects });
+    setTagInputs((prev) => {
+      const copy = [...prev];
+      copy[projIdx] = newTags.join(", ");
+      return copy;
+    });
   };
 
   const handleReset = () => {
@@ -356,6 +428,8 @@ export function EditPortfolioModal({
       ...formData,
       projects: [newProject, ...formData.projects],
     });
+    // Prepend a raw tag string for the new project
+    setTagInputs((prev) => [newProject.tags.join(", "), ...prev]);
   };
 
   // Remove Project
@@ -364,6 +438,7 @@ export function EditPortfolioModal({
       ...formData,
       projects: formData.projects.filter((_, i) => i !== index),
     });
+    setTagInputs((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Add new Skill / Tool
@@ -898,37 +973,114 @@ export function EditPortfolioModal({
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
-                          Tags (comma-separated)
-                        </label>
-                        <input
-                          type="text"
-                          className={inputClass}
-                          value={p.tags.join(", ")}
-                          onChange={(e) => {
-                            const next = [...formData.projects];
-                            next[idx] = {
-                              ...next[idx],
-                              tags: e.target.value
-                                .split(",")
-                                .map((s) => s.trim())
-                                .filter(Boolean),
-                            };
-                            setFormData({ ...formData, projects: next });
-                          }}
-                        />
+                      {/* TAGS & SKILLS SECTION */}
+                      <div className="p-3.5 rounded-xl bg-background/50 border border-white/5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[11px] text-foreground font-bold">
+                            Skills &amp; Tech Tags ({p.tags.length})
+                          </label>
+                          <span className="text-[10px] text-muted-foreground">Click ✕ to remove</span>
+                        </div>
+
+                        {/* Current Tag Chips */}
+                        {p.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {p.tags.map((tag, ti) => (
+                              <span
+                                key={ti}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 text-xs font-bold"
+                              >
+                                <span>{tag}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveTagFromProject(idx, ti)}
+                                  className="text-cyan-400/60 hover:text-red-400 transition ml-0.5"
+                                  title={`Remove ${tag}`}
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">No tags added yet.</p>
+                        )}
+
+                        {/* Inline Add Tag Input */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <input
+                            type="text"
+                            className={inputClass}
+                            value={newTagInputs[idx] || ""}
+                            placeholder="Add a skill (e.g. Power BI, DAX, SQL, Figma)..."
+                            onChange={(e) =>
+                              setNewTagInputs((prev) => ({ ...prev, [idx]: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (newTagInputs[idx]?.trim()) {
+                                  // Can add multiple comma-separated tags or single
+                                  const parts = newTagInputs[idx].split(",").map((s) => s.trim()).filter(Boolean);
+                                  parts.forEach((part) => handleAddTagToProject(idx, part));
+                                  setNewTagInputs((prev) => ({ ...prev, [idx]: "" }));
+                                }
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (newTagInputs[idx]?.trim()) {
+                                const parts = newTagInputs[idx].split(",").map((s) => s.trim()).filter(Boolean);
+                                parts.forEach((part) => handleAddTagToProject(idx, part));
+                                setNewTagInputs((prev) => ({ ...prev, [idx]: "" }));
+                              }
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-accent text-accent-foreground text-xs font-bold shrink-0 hover:opacity-90 active:scale-95 transition"
+                          >
+                            + Add Tag
+                          </button>
+                        </div>
+
+                        {/* Quick-add buttons from master tools */}
+                        {formData.tools && formData.tools.length > 0 && (
+                          <div className="pt-1">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block mb-1.5">
+                              ⚡ Quick-Add from your Master Skills:
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {formData.tools
+                                .filter((tool) => !p.tags.some((t) => t.toLowerCase() === tool.n.toLowerCase()))
+                                .slice(0, 10)
+                                .map((tool, ti) => (
+                                  <button
+                                    key={ti}
+                                    type="button"
+                                    onClick={() => handleAddTagToProject(idx, tool.n)}
+                                    className="px-2 py-0.5 rounded-md bg-muted hover:bg-accent/20 border border-white/10 text-muted-foreground hover:text-foreground text-[11px] font-medium transition flex items-center gap-1 active:scale-95"
+                                    title={`Add ${tool.n} to this project`}
+                                  >
+                                    <span>+</span>
+                                    <span>{tool.i}</span>
+                                    <span>{tool.n}</span>
+                                  </button>
+                                ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
+                      {/* Project Image URL */}
                       <div>
                         <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
-                          Project Image URL (optional)
+                          Project Image / Screenshot URL (optional)
                         </label>
                         <input
                           type="url"
                           className={inputClass}
                           value={p.img || ""}
-                          placeholder="https://example.com/image.png"
+                          placeholder="https://example.com/project-screenshot.png"
                           onChange={(e) => {
                             const next = [...formData.projects];
                             next[idx] = { ...next[idx], img: e.target.value };
@@ -949,21 +1101,108 @@ export function EditPortfolioModal({
                         )}
                       </div>
 
-                      <div>
-                        <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
-                          Project Link (optional)
-                        </label>
-                        <input
-                          type="url"
-                          className={inputClass}
-                          value={p.link || ""}
-                          placeholder="https://your-project-link.com"
-                          onChange={(e) => {
-                            const next = [...formData.projects];
-                            next[idx] = { ...next[idx], link: e.target.value };
-                            setFormData({ ...formData, projects: next });
-                          }}
-                        />
+                      {/* Live Demo Link & Source Code Link */}
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                            Live Demo Link (optional)
+                          </label>
+                          <input
+                            type="url"
+                            className={inputClass}
+                            value={p.link || ""}
+                            placeholder="https://your-dashboard.com"
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = { ...next[idx], link: e.target.value };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                            Source / GitHub Link (optional)
+                          </label>
+                          <input
+                            type="url"
+                            className={inputClass}
+                            value={p.sourceLink || ""}
+                            placeholder="https://github.com/..."
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = { ...next[idx], sourceLink: e.target.value };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Case File Metadata: Year, Role, Client, Status */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        <div>
+                          <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                            Year
+                          </label>
+                          <input
+                            type="text"
+                            className={inputClass}
+                            value={p.year || "2025"}
+                            placeholder="2025"
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = { ...next[idx], year: e.target.value };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                            Role
+                          </label>
+                          <input
+                            type="text"
+                            className={inputClass}
+                            value={p.role || "Data Analyst"}
+                            placeholder="Solo Developer"
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = { ...next[idx], role: e.target.value };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                            Client
+                          </label>
+                          <input
+                            type="text"
+                            className={inputClass}
+                            value={p.client || "Personal Project"}
+                            placeholder="Personal Project"
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = { ...next[idx], client: e.target.value };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                            Status
+                          </label>
+                          <input
+                            type="text"
+                            className={inputClass}
+                            value={p.status || "Shipped"}
+                            placeholder="Shipped"
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = { ...next[idx], status: e.target.value };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}

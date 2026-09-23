@@ -9,18 +9,18 @@ import fs from "fs";
 import path from "path";
 
 export default defineConfig({
-  base: "/",
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
   },
   vite: {
+    base: "/",
     plugins: [
       {
         name: "save-portfolio-content-endpoint",
-        configureServer(server) {
-          server.middlewares.use("/api/save-portfolio-content", (req, res) => {
+        configureServer(server: any) {
+          server.middlewares.use("/api/save-portfolio-content", (req: any, res: any) => {
             if (req.method === "POST") {
               let body = "";
               req.on("data", (chunk: Buffer) => {
