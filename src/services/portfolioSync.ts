@@ -1,14 +1,33 @@
 import type { PortfolioContent } from "@/components/EditPortfolioModal";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import {
+  fetchPortfolioFromSupabase,
+  savePortfolioToSupabase,
+} from "./supabasePortfolioService";
 
 export const STORAGE_KEY = "portfolio_content_v4";
 export const GITHUB_TOKEN_KEY = "portfolio_github_token";
 export const GITHUB_REPO = "yattapugani123-ux/Portfoilo";
 
 /**
- * Fetch the freshest portfolio-data.json from the live server/GitHub Pages deployment.
- * Cache-busted with timestamp query param and no-store headers.
+ * Fetch the freshest portfolio content:
+ * 1. Checks Supabase cloud database first (if configured).
+ * 2. Falls back to static portfolio-data.json if Supabase is offline or not yet configured.
  */
 export async function fetchLatestPortfolioContent(): Promise<PortfolioContent | null> {
+  // 1. Try Supabase cloud database
+  if (isSupabaseConfigured) {
+    try {
+      const supabaseData = await fetchPortfolioFromSupabase();
+      if (supabaseData && supabaseData.name) {
+        return supabaseData;
+      }
+    } catch (err) {
+      console.warn("Could not fetch from Supabase, falling back to static file:", err);
+    }
+  }
+
+  // 2. Fallback to static public/portfolio-data.json
   try {
     const baseUrl = import.meta.env.BASE_URL || "/";
     const cleanBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
@@ -36,42 +55,26 @@ export async function fetchLatestPortfolioContent(): Promise<PortfolioContent | 
 }
 
 /**
- * Reconcile local data with remote server data:
- * - If remote exists and has updatedAt >= local's updatedAt (or local has no updatedAt), remote wins!
- * - If remote has newer data, update localStorage so subsequent renders stay fresh.
+ * Reconcile local data with cloud server data:
+ * - If remote exists, remote always takes precedence so all devices reflect cloud state.
  */
 export function reconcilePortfolioData(
   localData: PortfolioContent | null,
   remoteData: PortfolioContent | null,
   defaultData: PortfolioContent,
 ): { content: PortfolioContent; source: "remote" | "local" | "default"; isUpdated: boolean } {
-  if (!remoteData) {
-    if (localData) return { content: localData, source: "local", isUpdated: false };
-    return { content: defaultData, source: "default", isUpdated: false };
-  }
-
-  // If there's no local data, remote wins
-  if (!localData) {
+  if (remoteData) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteData));
     } catch {}
     return { content: remoteData, source: "remote", isUpdated: true };
   }
 
-  const localTime = localData.updatedAt || 0;
-  const remoteTime = remoteData.updatedAt || 0;
-
-  // If localData has NO updatedAt (it is from older stale cache), remote wins!
-  // If remoteTime >= localTime, remote wins!
-  if (!localData.updatedAt || remoteTime >= localTime) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteData));
-    } catch {}
-    return { content: remoteData, source: "remote", isUpdated: true };
+  if (localData) {
+    return { content: localData, source: "local", isUpdated: false };
   }
 
-  // Local is newer (e.g. edited locally on this machine)
-  return { content: localData, source: "local", isUpdated: false };
+  return { content: defaultData, source: "default", isUpdated: false };
 }
 
 /**
@@ -87,7 +90,6 @@ export function clearLocalPortfolioCache(): void {
 
 /**
  * Save directly to GitHub via GitHub REST API if a token is configured.
- * This allows updating the website from mobile phone or any laptop without needing terminal or git commands!
  */
 export async function pushToGitHub(
   content: PortfolioContent,
@@ -106,7 +108,6 @@ export async function pushToGitHub(
 
   try {
     const jsonString = JSON.stringify(content, null, 2);
-    // Base64 encode UTF-8
     const bytes = new TextEncoder().encode(jsonString);
     let binary = "";
     for (let i = 0; i < bytes.length; i++) {
@@ -165,24 +166,44 @@ export async function pushToGitHub(
 /**
  * Save portfolio content:
  * 1. Sets/updates updatedAt timestamp.
- * 2. Saves to localStorage for local fast preview on this machine.
- * 3. If running on local dev server (localhost / 127.0.0.1 / local ip), calls POST /api/save-portfolio-content.
- * 4. If GitHub token is present, automatically pushes to GitHub!
+ * 2. Saves directly to Supabase Cloud Database.
+ * 3. Saves to localStorage as temporary/offline cache.
+ * 4. If running on local dev server, calls POST /api/save-portfolio-content.
+ * 5. If GitHub token is present, pushes to GitHub repo.
  */
 export async function savePortfolioContent(
   content: PortfolioContent,
-): Promise<{ success: boolean; savedToDisk: boolean; pushedToGitHub: boolean; githubMessage?: string }> {
+): Promise<{
+  success: boolean;
+  savedToSupabase: boolean;
+  savedToDisk: boolean;
+  pushedToGitHub: boolean;
+  supabaseError?: string;
+  githubMessage?: string;
+}> {
   // Always update timestamp
   content.updatedAt = Date.now();
 
-  // 1. Save to local browser storage
+  // 1. Save to Supabase Cloud
+  let savedToSupabase = false;
+  let supabaseError: string | undefined;
+
+  if (isSupabaseConfigured) {
+    const sbRes = await savePortfolioToSupabase(content);
+    savedToSupabase = sbRes.success;
+    if (!sbRes.success) {
+      supabaseError = sbRes.error;
+    }
+  }
+
+  // 2. Save to local browser storage as fallback/cache
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
   } catch (e) {
     console.error("Failed to save to localStorage:", e);
   }
 
-  // 2. Try saving to local dev server disk if available
+  // 3. Try saving to local dev server disk if available
   let savedToDisk = false;
   try {
     const isLocal =
@@ -205,7 +226,7 @@ export async function savePortfolioContent(
     // Expected on static production builds
   }
 
-  // 3. Try GitHub sync if token is stored
+  // 4. Try GitHub sync if token is stored
   let pushedToGitHub = false;
   let githubMessage = "";
   try {
@@ -217,7 +238,16 @@ export async function savePortfolioContent(
     }
   } catch {}
 
-  return { success: true, savedToDisk, pushedToGitHub, githubMessage };
+  const overallSuccess = savedToSupabase || savedToDisk || !isSupabaseConfigured;
+
+  return {
+    success: overallSuccess,
+    savedToSupabase,
+    savedToDisk,
+    pushedToGitHub,
+    supabaseError,
+    githubMessage,
+  };
 }
 
 /**

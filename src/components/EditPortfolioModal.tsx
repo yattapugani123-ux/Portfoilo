@@ -9,6 +9,17 @@ import {
   GITHUB_TOKEN_KEY,
   GITHUB_REPO,
 } from "@/services/portfolioSync";
+import {
+  isSupabaseConfigured,
+  signInAdmin,
+  signOutAdmin,
+  getCurrentAdminUser,
+} from "@/lib/supabaseClient";
+import {
+  savePortfolioToSupabase,
+  fetchPortfolioFromSupabase,
+} from "@/services/supabasePortfolioService";
+import type { User } from "@supabase/supabase-js";
 
 export interface ProjectItem {
   t: string;
@@ -54,6 +65,7 @@ export interface PortfolioContent {
   name: string;
   roles: string;
   bio: string;
+  profileImageUrl?: string;
   resumeUrl: string;
   viewAllProjectsText?: string;
   viewAllProjectsUrl?: string;
@@ -113,6 +125,17 @@ export function EditPortfolioModal({
   const [errorMsg, setErrorMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  // Supabase Auth & Cloud State
+  const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
+  const [authMode, setAuthMode] = useState<"supabase" | "pin">(
+    isSupabaseConfigured ? "supabase" : "pin"
+  );
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const [sbSyncStatus, setSbSyncStatus] = useState("");
+  const [isSyncingSb, setIsSyncingSb] = useState(false);
+
   // GitHub & Multi-device sync state
   const [githubToken, setGithubToken] = useState(() => {
     return typeof window !== "undefined" ? localStorage.getItem(GITHUB_TOKEN_KEY) || "" : "";
@@ -134,7 +157,7 @@ export function EditPortfolioModal({
 
   const handlePullLatest = async () => {
     setIsPullingLive(true);
-    setPullStatus("Fetching latest published data from server...");
+    setPullStatus("Fetching latest published data from Supabase Cloud / server...");
     try {
       const fresh = await fetchLatestPortfolioContent();
       if (fresh) {
@@ -143,7 +166,7 @@ export function EditPortfolioModal({
         try {
           localStorage.setItem("portfolio_content_v4", JSON.stringify(fresh));
         } catch {}
-        setPullStatus("✓ Updated to newest live data successfully!");
+        setPullStatus("✓ Updated to newest cloud data successfully!");
       } else {
         setPullStatus("Could not fetch fresh data. Please check connection.");
       }
@@ -152,6 +175,30 @@ export function EditPortfolioModal({
     } finally {
       setIsPullingLive(false);
       setTimeout(() => setPullStatus(""), 4000);
+    }
+  };
+
+  const handleSyncToSupabase = async () => {
+    if (!isSupabaseConfigured) {
+      setSbSyncStatus("⚠️ Supabase credentials are not configured in environment variables yet.");
+      setTimeout(() => setSbSyncStatus(""), 5000);
+      return;
+    }
+
+    setIsSyncingSb(true);
+    setSbSyncStatus("Saving entire portfolio to Supabase Cloud database...");
+    try {
+      const res = await savePortfolioToSupabase(formData);
+      if (res.success) {
+        setSbSyncStatus("✓ Successfully synced all portfolio data to Supabase Cloud! Visible worldwide.");
+      } else {
+        setSbSyncStatus(`⚠️ Sync failed: ${res.error}`);
+      }
+    } catch (err) {
+      setSbSyncStatus(`⚠️ Error: ${String(err)}`);
+    } finally {
+      setIsSyncingSb(false);
+      setTimeout(() => setSbSyncStatus(""), 6000);
     }
   };
 
@@ -190,10 +237,21 @@ export function EditPortfolioModal({
       if (initialTab) {
         setActiveTab(initialTab);
       }
+
+      // Check Supabase session first
+      if (isSupabaseConfigured) {
+        getCurrentAdminUser().then((user) => {
+          if (user) {
+            setSupabaseUser(user);
+            setIsUnlocked(true);
+          }
+        });
+      }
+
       const unlockedSession = sessionStorage.getItem("portfolio_editor_unlocked") === "true";
       if (unlockedSession) {
         setIsUnlocked(true);
-      } else {
+      } else if (!supabaseUser) {
         setIsUnlocked(false);
         setPasswordInput("");
         setErrorMsg("");
@@ -215,17 +273,51 @@ export function EditPortfolioModal({
     }
   };
 
-  const handleLockOut = () => {
+  const handleSupabaseLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      setErrorMsg("Please enter both email and password.");
+      return;
+    }
+
+    setIsSubmittingAuth(true);
+    setErrorMsg("");
+    try {
+      const res = await signInAdmin(adminEmail, adminPassword);
+      if (res.success && res.user) {
+        setSupabaseUser(res.user);
+        setIsUnlocked(true);
+        sessionStorage.setItem("portfolio_editor_unlocked", "true");
+      } else {
+        setErrorMsg(res.error || "Authentication failed. Check your Supabase admin credentials.");
+      }
+    } catch (err) {
+      setErrorMsg(`Login error: ${String(err)}`);
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleLockOut = async () => {
+    if (supabaseUser) {
+      await signOutAdmin();
+      setSupabaseUser(null);
+    }
     sessionStorage.removeItem("portfolio_editor_unlocked");
     setIsUnlocked(false);
     setPasswordInput("");
+    setAdminPassword("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
     const res = await savePortfolioContent(formData);
-    if (res.pushedToGitHub) {
+    if (res.savedToSupabase) {
+      setSaveStatusText("✓ Saved to Supabase Cloud! Live globally across all devices.");
+    } else if (res.supabaseError) {
+      setSaveStatusText(`⚠️ Saved locally, but Supabase error: ${res.supabaseError}`);
+    } else if (res.pushedToGitHub) {
       setSaveStatusText("✓ Saved & Pushed to GitHub! Updating globally...");
     } else if (res.savedToDisk) {
       setSaveStatusText("✓ Saved to project files! Push to GitHub to update mobile.");
@@ -237,7 +329,7 @@ export function EditPortfolioModal({
       setSavedNotice(false);
       setSaveStatusText("");
       onClose();
-    }, 1200);
+    }, 1500);
   };
 
   const handleReset = () => {
@@ -340,20 +432,32 @@ export function EditPortfolioModal({
               ⚙️
             </span>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base sm:text-lg font-bold text-foreground">
                   Portfolio Content Editor
                 </h2>
                 {isUnlocked && (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-                    Unlocked
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
+                    <span>●</span>
+                    <span>{supabaseUser ? `Cloud: ${supabaseUser.email}` : "Unlocked"}</span>
+                  </span>
+                )}
+                {isSupabaseConfigured ? (
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 text-[10px] font-semibold hidden sm:inline-flex items-center gap-1">
+                    <span>☁️</span>
+                    <span>Supabase Connected</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25 text-[10px] font-semibold hidden sm:inline-flex items-center gap-1">
+                    <span>⚡</span>
+                    <span>Offline / Local Mode</span>
                   </span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
                 {isUnlocked
                   ? "Customize everything on the website: names, projects, skills, links"
-                  : "Enter password to unlock editing"}
+                  : "Enter your admin credentials or passcode to unlock editing"}
               </p>
             </div>
           </div>
@@ -364,7 +468,7 @@ export function EditPortfolioModal({
                 type="button"
                 onClick={handleLockOut}
                 title="Lock Editor"
-                className="h-8 px-2.5 rounded-lg bg-muted/60 hover:bg-muted border border-white/10 text-xs text-muted-foreground hover:text-foreground transition flex items-center gap-1.5"
+                className="h-8 px-2.5 rounded-lg bg-muted/60 hover:bg-muted border border-white/10 text-xs text-muted-foreground hover:text-foreground transition flex items-center gap-1.5 cursor-pointer"
               >
                 🔒 Lock
               </button>
@@ -373,14 +477,14 @@ export function EditPortfolioModal({
               type="button"
               onClick={onClose}
               aria-label="Close modal"
-              className="h-9 w-9 rounded-full bg-muted/60 border border-white/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              className="h-9 w-9 rounded-full bg-muted/60 border border-white/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
             >
               ✕
             </button>
           </div>
         </div>
 
-        {/* PASSWORD GATE IF LOCKED */}
+        {/* PASSWORD & AUTH GATE IF LOCKED */}
         {!isUnlocked ? (
           <div className="p-6 sm:p-10 flex flex-col items-center justify-center text-center space-y-5">
             <div className="h-16 w-16 rounded-3xl bg-accent/20 border border-accent/30 grid place-items-center text-3xl shadow-soft animate-bounce">
@@ -389,52 +493,155 @@ export function EditPortfolioModal({
             <div>
               <h3 className="text-xl font-bold text-foreground">Protected Content Editor</h3>
               <p className="mt-1 text-sm text-muted-foreground max-w-sm">
-                Enter your administrative password to edit projects, skills, names, and links.
+                Only the portfolio owner can edit live content. Sign in to update your Supabase cloud database.
               </p>
             </div>
 
-            <form onSubmit={handlePasswordSubmit} className="w-full max-w-sm space-y-3">
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={passwordInput}
-                  onChange={(e) => {
-                    setPasswordInput(e.target.value);
+            {/* Auth Mode Toggle if Supabase is configured */}
+            {isSupabaseConfigured && (
+              <div className="flex items-center p-1 rounded-xl bg-muted/70 border border-white/10 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("supabase");
                     setErrorMsg("");
                   }}
-                  placeholder="Enter administrative password..."
-                  className="w-full rounded-2xl bg-muted/80 border border-white/15 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-accent focus:outline-none transition pr-11"
-                  autoFocus
-                />
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    authMode === "supabase"
+                      ? "bg-accent text-accent-foreground shadow-sm font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  ☁️ Supabase Admin
+                </button>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setAuthMode("pin");
+                    setErrorMsg("");
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    authMode === "pin"
+                      ? "bg-accent text-accent-foreground shadow-sm font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
-                  {showPassword ? "🙈" : "👁️"}
+                  🔑 Master Passcode
                 </button>
               </div>
+            )}
 
-              {errorMsg && (
-                <p className="text-xs text-destructive font-medium animate-pulse">{errorMsg}</p>
-              )}
+            {authMode === "supabase" && isSupabaseConfigured ? (
+              <form onSubmit={handleSupabaseLogin} className="w-full max-w-sm space-y-3 text-left">
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                    Admin Email
+                  </label>
+                  <input
+                    type="email"
+                    value={adminEmail}
+                    onChange={(e) => {
+                      setAdminEmail(e.target.value);
+                      setErrorMsg("");
+                    }}
+                    placeholder="admin@example.com"
+                    className="w-full rounded-2xl bg-muted/80 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-accent focus:outline-none transition"
+                    autoFocus
+                    required
+                  />
+                </div>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 py-2.5 rounded-xl bg-muted/60 hover:bg-muted text-xs font-semibold transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-accent text-accent-foreground font-bold text-xs hover:opacity-90 active:scale-95 transition shadow-sm cursor-pointer"
-                >
-                  Unlock & Edit →
-                </button>
-              </div>
-            </form>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={adminPassword}
+                      onChange={(e) => {
+                        setAdminPassword(e.target.value);
+                        setErrorMsg("");
+                      }}
+                      placeholder="Enter Supabase password..."
+                      className="w-full rounded-2xl bg-muted/80 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-accent focus:outline-none transition pr-11"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                </div>
+
+                {errorMsg && (
+                  <p className="text-xs text-destructive font-medium animate-pulse text-center">{errorMsg}</p>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-2.5 rounded-xl bg-muted/60 hover:bg-muted text-xs font-semibold transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingAuth}
+                    className="flex-1 py-2.5 rounded-xl bg-accent text-accent-foreground font-bold text-xs hover:opacity-90 active:scale-95 transition shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmittingAuth ? "Authenticating..." : "Sign In & Edit →"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handlePasswordSubmit} className="w-full max-w-sm space-y-3">
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      setErrorMsg("");
+                    }}
+                    placeholder="Enter passcode (default: 252525)..."
+                    className="w-full rounded-2xl bg-muted/80 border border-white/15 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-accent focus:outline-none transition pr-11"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? "🙈" : "👁️"}
+                  </button>
+                </div>
+
+                {errorMsg && (
+                  <p className="text-xs text-destructive font-medium animate-pulse">{errorMsg}</p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-2.5 rounded-xl bg-muted/60 hover:bg-muted text-xs font-semibold transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-accent text-accent-foreground font-bold text-xs hover:opacity-90 active:scale-95 transition shadow-sm cursor-pointer"
+                  >
+                    Unlock & Edit →
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         ) : (
           <>
@@ -504,6 +711,22 @@ export function EditPortfolioModal({
                       placeholder="e.g. Data Analyst | Power BI Developer | UI/UX Designer"
                       required
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Profile Picture Image URL
+                    </label>
+                    <input
+                      type="url"
+                      className={inputClass}
+                      value={formData.profileImageUrl || ""}
+                      onChange={(e) => setFormData({ ...formData, profileImageUrl: e.target.value })}
+                      placeholder="https://... (or leave empty for default cutout photo)"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Paste a direct image URL (PNG, JPG, WebP) or leave empty to use your default cutout photo.
+                    </p>
                   </div>
 
                   <div>
@@ -1294,27 +1517,82 @@ export function EditPortfolioModal({
                 </div>
               )}
 
-              {/* TAB: MOBILE & GITHUB SYNC */}
+              {/* TAB: MOBILE, CLOUD & GITHUB SYNC */}
               {activeTab === "sync" && (
                 <div className="space-y-4 animate-in fade-in duration-150">
                   <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-base">📱</span>
+                      <span className="text-base">☁️</span>
                       <h4 className="text-sm font-bold text-cyan-300">
-                        Multi-Device & Live Synchronization
+                        Cloud Database & Multi-Device Sync
                       </h4>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Keep your laptop, mobile phone, and all visitors completely in sync with the freshest updates.
+                      Changes saved to Supabase Cloud instantly reflect across your laptop, phone, tablet, and for all global visitors.
                     </p>
                   </div>
 
-                  {/* 1. Live Device Status & Instant Refresh */}
+                  {/* 1. Supabase Cloud Database Sync */}
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/10 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <span>☁️</span>
+                        <span>Supabase Cloud Database Status</span>
+                      </h5>
+                      {isSupabaseConfigured ? (
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>Connected to Cloud</span>
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1.5">
+                          <span>⚡</span>
+                          <span>Configuration Needed</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {isSupabaseConfigured
+                        ? `Supabase is connected! ${supabaseUser ? `Authenticated as admin: ${supabaseUser.email}.` : "You are in passcode mode. Sign in with Supabase Admin for full RLS write permissions."}`
+                        : "To enable live multi-device database syncing, add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables (e.g. .env or Vercel Settings)."}
+                    </p>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleSyncToSupabase}
+                        disabled={isSyncingSb}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-accent text-accent-foreground font-bold text-xs active:scale-95 transition cursor-pointer disabled:opacity-50 shadow-sm"
+                      >
+                        <span className={isSyncingSb ? "animate-spin" : ""}>🔄</span>
+                        <span>{isSyncingSb ? "Saving to Cloud..." : "Sync All to Supabase Cloud"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handlePullLatest}
+                        disabled={isPullingLive}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-white/15 text-foreground font-semibold text-xs hover:bg-muted active:scale-95 transition cursor-pointer disabled:opacity-50"
+                      >
+                        <span className={isPullingLive ? "animate-spin" : ""}>📥</span>
+                        <span>{isPullingLive ? "Fetching..." : "Pull Latest from Cloud"}</span>
+                      </button>
+                    </div>
+
+                    {sbSyncStatus && (
+                      <div className="p-2.5 rounded-xl bg-accent/15 border border-accent/30 text-xs text-foreground font-medium animate-in fade-in">
+                        {sbSyncStatus}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Live Device Cache & Reset */}
                   <div className="p-4 rounded-2xl bg-muted/40 border border-white/10 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
                         <span>⚡</span>
-                        <span>This Device's Cache & Live Status</span>
+                        <span>Device Cache Status</span>
                       </h5>
                       <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white/5 text-cyan-300 border border-white/10">
                         {formData.updatedAt
@@ -1324,20 +1602,10 @@ export function EditPortfolioModal({
                     </div>
 
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      If you made updates on another laptop or phone, use these buttons to instantly wipe any previous cached version and pull the latest live data:
+                      If another device made updates and this device retains older cached data, clear the cache to immediately reload directly from cloud:
                     </p>
 
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={handlePullLatest}
-                        disabled={isPullingLive}
-                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 font-bold text-xs active:scale-95 transition cursor-pointer disabled:opacity-50"
-                      >
-                        <span className={isPullingLive ? "animate-spin" : ""}>🔄</span>
-                        <span>{isPullingLive ? "Fetching..." : "Pull Latest from Live Server"}</span>
-                      </button>
-
                       <button
                         type="button"
                         onClick={handleClearCache}
@@ -1347,12 +1615,6 @@ export function EditPortfolioModal({
                         <span>Clear Stale Cache & Reload</span>
                       </button>
                     </div>
-
-                    {pullStatus && (
-                      <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-cyan-300 font-medium">
-                        {pullStatus}
-                      </div>
-                    )}
                   </div>
 
                   {/* 2. Direct Mobile-to-Cloud Sync via GitHub */}

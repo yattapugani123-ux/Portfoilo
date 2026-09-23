@@ -237,25 +237,15 @@ function Portfolio() {
       setContent(defaultData);
     }
 
-    // 2. Fetch live published data with cache-buster so mobile/other laptops never show stale data
+    // 2. Fetch live published data from Supabase cloud database
     const syncLatestData = async () => {
       try {
-        const remote = await fetchLatestPortfolioContent();
-        if (remote) {
-          let currentLocal: PortfolioContent | null = null;
-          try {
-            const raw = localStorage.getItem("portfolio_content_v4");
-            if (raw) currentLocal = JSON.parse(raw);
-          } catch {}
-
-          const { content: reconciled, isUpdated } = reconcilePortfolioData(
-            currentLocal,
-            remote,
-            defaultData,
-          );
-          if (isUpdated) {
-            setContent(reconciled);
-          }
+        const cloudData = await fetchLatestPortfolioContent();
+        if (cloudData && cloudData.name) {
+          setContent((prev) => ({
+            ...prev,
+            ...cloudData,
+          }));
         }
       } catch (err) {
         console.warn("Live portfolio sync error:", err);
@@ -550,9 +540,9 @@ function Portfolio() {
                 <div className="profile-photo-outer animate-profile-entry">
                   <span className="profile-shimmer" />
                   <img
-                    src={profileImg}
+                    src={content.profileImageUrl || profileImg}
                     alt={content.name}
-                    className="profile-photo-img"
+                    className="profile-photo-img object-cover"
                     fetchPriority="high"
                     decoding="async"
                     width={280}
