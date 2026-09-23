@@ -1,8 +1,12 @@
 import { createClient, type SupabaseClient, type User, type Session } from "@supabase/supabase-js";
 
-// Read public environment variables safely
-const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || "").trim();
-const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim();
+// Read public environment variables safely, with hardcoded fallback for production builds.
+// The anon key is a public/publishable key — safe to embed in client code.
+const SUPABASE_URL = "https://rlyeaalxbzuunythwglc.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_qL2eLtfpn7ObtAV84ls_BA_ABt8t3-z";
+
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || SUPABASE_URL).trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY).trim();
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
