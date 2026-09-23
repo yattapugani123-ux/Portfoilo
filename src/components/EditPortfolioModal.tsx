@@ -1,5 +1,14 @@
 import { useState, useEffect } from "react";
-import { savePortfolioContent, downloadPortfolioJson, copyPortfolioJson } from "@/services/portfolioSync";
+import {
+  savePortfolioContent,
+  downloadPortfolioJson,
+  copyPortfolioJson,
+  fetchLatestPortfolioContent,
+  clearLocalPortfolioCache,
+  pushToGitHub,
+  GITHUB_TOKEN_KEY,
+  GITHUB_REPO,
+} from "@/services/portfolioSync";
 
 export interface ProjectItem {
   t: string;
@@ -41,6 +50,7 @@ export interface CertItem {
 }
 
 export interface PortfolioContent {
+  updatedAt?: number;
   name: string;
   roles: string;
   bio: string;
@@ -103,6 +113,74 @@ export function EditPortfolioModal({
   const [errorMsg, setErrorMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  // GitHub & Multi-device sync state
+  const [githubToken, setGithubToken] = useState(() => {
+    return typeof window !== "undefined" ? localStorage.getItem(GITHUB_TOKEN_KEY) || "" : "";
+  });
+  const [isPullingLive, setIsPullingLive] = useState(false);
+  const [pullStatus, setPullStatus] = useState("");
+  const [ghTestStatus, setGhTestStatus] = useState("");
+
+  const handleSaveGitHubToken = (val: string) => {
+    setGithubToken(val);
+    try {
+      if (val.trim()) {
+        localStorage.setItem(GITHUB_TOKEN_KEY, val.trim());
+      } else {
+        localStorage.removeItem(GITHUB_TOKEN_KEY);
+      }
+    } catch {}
+  };
+
+  const handlePullLatest = async () => {
+    setIsPullingLive(true);
+    setPullStatus("Fetching latest published data from server...");
+    try {
+      const fresh = await fetchLatestPortfolioContent();
+      if (fresh) {
+        setFormData(fresh);
+        onSave(fresh);
+        try {
+          localStorage.setItem("portfolio_content_v4", JSON.stringify(fresh));
+        } catch {}
+        setPullStatus("✓ Updated to newest live data successfully!");
+      } else {
+        setPullStatus("Could not fetch fresh data. Please check connection.");
+      }
+    } catch (err) {
+      setPullStatus(`Sync error: ${String(err)}`);
+    } finally {
+      setIsPullingLive(false);
+      setTimeout(() => setPullStatus(""), 4000);
+    }
+  };
+
+  const handleClearCache = () => {
+    if (
+      window.confirm(
+        "Clear this device's local cache and reload fresh data directly from the server?",
+      )
+    ) {
+      clearLocalPortfolioCache();
+      window.location.reload();
+    }
+  };
+
+  const handleTestGitHubPush = async () => {
+    if (!githubToken.trim()) {
+      setGhTestStatus("Please paste your GitHub token below first.");
+      return;
+    }
+    setGhTestStatus("Pushing update directly to GitHub repository...");
+    const res = await pushToGitHub(formData, githubToken.trim());
+    if (res.success) {
+      setGhTestStatus("✓ Direct sync test successful! GitHub is updated and building.");
+    } else {
+      setGhTestStatus(`Error: ${res.message}`);
+    }
+    setTimeout(() => setGhTestStatus(""), 6000);
+  };
+
   useEffect(() => {
     setFormData(content);
   }, [content]);
@@ -147,8 +225,10 @@ export function EditPortfolioModal({
     e.preventDefault();
     onSave(formData);
     const res = await savePortfolioContent(formData);
-    if (res.savedToDisk) {
-      setSaveStatusText("✓ Saved to laptop files! Push to GitHub to update mobile.");
+    if (res.pushedToGitHub) {
+      setSaveStatusText("✓ Saved & Pushed to GitHub! Updating globally...");
+    } else if (res.savedToDisk) {
+      setSaveStatusText("✓ Saved to project files! Push to GitHub to update mobile.");
     } else {
       setSaveStatusText("✓ Saved locally!");
     }
@@ -157,7 +237,7 @@ export function EditPortfolioModal({
       setSavedNotice(false);
       setSaveStatusText("");
       onClose();
-    }, 1100);
+    }, 1200);
   };
 
   const handleReset = () => {
@@ -1221,50 +1301,110 @@ export function EditPortfolioModal({
                     <div className="flex items-center gap-2">
                       <span className="text-base">📱</span>
                       <h4 className="text-sm font-bold text-cyan-300">
-                        Multi-Device & Mobile Synchronization
+                        Multi-Device & Live Synchronization
                       </h4>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Understand why updates show on your laptop first, and how to publish them so your mobile phone and all visitors see them worldwide.
+                      Keep your laptop, mobile phone, and all visitors completely in sync with the freshest updates.
                     </p>
                   </div>
 
-                  {/* Why it happens explanation */}
-                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/5 space-y-2.5">
-                    <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <span>💡</span>
-                      <span>Why do changes appear on this laptop first?</span>
-                    </h5>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Your website is hosted on <strong className="text-white">GitHub Pages</strong>, which is a static hosting platform. When you edit and click "Save", changes are immediately stored in this laptop browser's storage. Mobile phones and other devices have their own separate browsers, so they load what is published to your <strong className="text-white">GitHub repository</strong>.
-                    </p>
-                  </div>
-
-                  {/* Auto-save status */}
-                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/5 space-y-3">
-                    <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <span>💻</span>
-                      <span>Laptop Auto-Save to Project Files</span>
-                    </h5>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      When running locally (<code className="text-cyan-300 bg-black/40 px-1.5 py-0.5 rounded">npm run dev</code>), clicking <strong>Save Changes</strong> automatically updates <code className="text-accent bg-black/40 px-1.5 py-0.5 rounded">src/data/portfolioData.json</code> on your computer disk!
-                    </p>
-                    <div className="p-2.5 rounded-xl bg-muted/60 border border-white/10 flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Auto-save to disk:</span>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold text-[11px]">
-                        ● Active on local dev
+                  {/* 1. Live Device Status & Instant Refresh */}
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/10 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <span>⚡</span>
+                        <span>This Device's Cache & Live Status</span>
+                      </h5>
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white/5 text-cyan-300 border border-white/10">
+                        {formData.updatedAt
+                          ? `Updated: ${new Date(formData.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                          : "Default Data"}
                       </span>
                     </div>
+
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      If you made updates on another laptop or phone, use these buttons to instantly wipe any previous cached version and pull the latest live data:
+                    </p>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handlePullLatest}
+                        disabled={isPullingLive}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 font-bold text-xs active:scale-95 transition cursor-pointer disabled:opacity-50"
+                      >
+                        <span className={isPullingLive ? "animate-spin" : ""}>🔄</span>
+                        <span>{isPullingLive ? "Fetching..." : "Pull Latest from Live Server"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleClearCache}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-destructive/15 hover:bg-destructive/25 border border-destructive/30 text-destructive-foreground font-semibold text-xs active:scale-95 transition cursor-pointer"
+                      >
+                        <span>🧹</span>
+                        <span>Clear Stale Cache & Reload</span>
+                      </button>
+                    </div>
+
+                    {pullStatus && (
+                      <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-cyan-300 font-medium">
+                        {pullStatus}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Actions to update mobile & all devices */}
-                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/5 space-y-3">
+                  {/* 2. Direct Mobile-to-Cloud Sync via GitHub */}
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/10 space-y-3">
                     <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <span>🚀</span>
-                      <span>Publish Changes to Mobile & GitHub</span>
+                      <span>☁️</span>
+                      <span>Direct Mobile Sync (Save Anywhere, No Laptop Needed)</span>
                     </h5>
-                    <p className="text-xs text-muted-foreground">
-                      Use these one-click tools to export your changes or copy the data:
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Want to edit on your <strong>mobile phone</strong> and automatically update your live website for all devices worldwide? Paste a GitHub Personal Access Token (classic token with <code className="text-cyan-300 bg-black/40 px-1 py-0.5 rounded">repo</code> scope) below:
+                    </p>
+
+                    <div className="space-y-2">
+                      <input
+                        type="password"
+                        value={githubToken}
+                        onChange={(e) => handleSaveGitHubToken(e.target.value)}
+                        placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                        className="w-full rounded-xl bg-black/40 border border-white/15 px-3.5 py-2 text-xs font-mono text-cyan-300 placeholder:text-muted-foreground/50 focus:border-cyan-400 outline-none"
+                      />
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-[11px] text-muted-foreground">
+                          Target: <code className="text-white">{GITHUB_REPO}</code>
+                        </span>
+                        {githubToken.trim() && (
+                          <button
+                            type="button"
+                            onClick={handleTestGitHubPush}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-card border border-white/15 text-xs text-cyan-300 hover:bg-muted active:scale-95 transition cursor-pointer"
+                          >
+                            <span>🚀</span>
+                            <span>Test Direct Push to GitHub</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {ghTestStatus && (
+                      <div className="p-2.5 rounded-xl bg-black/40 border border-white/15 text-xs font-medium text-amber-300">
+                        {ghTestStatus}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. Laptop Local Dev & Manual Git Push */}
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-white/10 space-y-3">
+                    <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <span>💻</span>
+                      <span>Laptop Dev Server Auto-Save</span>
+                    </h5>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      When running locally (<code className="text-cyan-300 bg-black/40 px-1.5 py-0.5 rounded">npm run dev</code>), clicking <strong>Save Changes</strong> automatically writes directly to <code className="text-accent bg-black/40 px-1.5 py-0.5 rounded">src/data/portfolioData.json</code> and <code className="text-accent bg-black/40 px-1.5 py-0.5 rounded">public/portfolio-data.json</code> on your computer disk!
                     </p>
 
                     <div className="flex flex-wrap gap-2.5 pt-1">
@@ -1295,7 +1435,7 @@ export function EditPortfolioModal({
 
                     <div className="mt-3 p-3 rounded-xl bg-black/30 border border-white/10 text-xs font-mono text-cyan-300/90 space-y-1">
                       <div className="text-[11px] text-muted-foreground font-sans font-semibold mb-1">
-                        Commands to push to GitHub (updates mobile phones worldwide in ~1 min):
+                        Commands to push changes to GitHub (updates all phones and laptops in ~1 min):
                       </div>
                       <div>git add .</div>
                       <div>git commit -m "Update portfolio settings"</div>

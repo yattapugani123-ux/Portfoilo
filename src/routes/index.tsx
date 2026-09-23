@@ -4,7 +4,12 @@ import profileImg from "@/assets/ganesh.png";
 import { ScrollReveal } from "@/components/ScrollReveal";
 import type { PortfolioContent, EditorTab } from "@/components/EditPortfolioModal";
 import defaultPortfolioData from "@/data/portfolioData.json";
-import { savePortfolioContent } from "@/services/portfolioSync";
+import {
+  savePortfolioContent,
+  fetchLatestPortfolioContent,
+  reconcilePortfolioData,
+  clearLocalPortfolioCache,
+} from "@/services/portfolioSync";
 
 // Heavy components: loaded after first paint so hero renders instantly
 const AiBackground = lazy(() =>
@@ -211,19 +216,73 @@ function Portfolio() {
     // Smooth page fade-in on mount
     const t = setTimeout(() => setPageReady(true), 80);
 
+    const defaultData =
+      (defaultPortfolioData as unknown as PortfolioContent) || DEFAULT_CONTENT;
+
+    // 1. Initial optimistic paint from localStorage if available
+    let initialLocal: PortfolioContent | null = null;
     try {
       const saved = localStorage.getItem("portfolio_content_v4");
       if (saved) {
+        initialLocal = JSON.parse(saved);
         setContent({
-          ...(defaultPortfolioData as unknown as PortfolioContent),
-          ...JSON.parse(saved),
+          ...defaultData,
+          ...initialLocal,
         });
       } else {
-        setContent(defaultPortfolioData as unknown as PortfolioContent);
+        setContent(defaultData);
       }
     } catch (e) {
       console.error(e);
+      setContent(defaultData);
     }
+
+    // 2. Fetch live published data with cache-buster so mobile/other laptops never show stale data
+    const syncLatestData = async () => {
+      try {
+        const remote = await fetchLatestPortfolioContent();
+        if (remote) {
+          let currentLocal: PortfolioContent | null = null;
+          try {
+            const raw = localStorage.getItem("portfolio_content_v4");
+            if (raw) currentLocal = JSON.parse(raw);
+          } catch {}
+
+          const { content: reconciled, isUpdated } = reconcilePortfolioData(
+            currentLocal,
+            remote,
+            defaultData,
+          );
+          if (isUpdated) {
+            setContent(reconciled);
+          }
+        }
+      } catch (err) {
+        console.warn("Live portfolio sync error:", err);
+      }
+    };
+
+    // Trigger live network sync immediately on mount
+    syncLatestData();
+
+    // 3. Re-sync automatically when user switches back to this tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        syncLatestData();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // 4. Cross-tab synchronization on this device
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === "portfolio_content_v4" && e.newValue) {
+        try {
+          const updated = JSON.parse(e.newValue);
+          setContent(updated);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorageEvent);
 
     const onScroll = () => {
       setShowTopBtn(window.scrollY > 420);
@@ -244,6 +303,8 @@ function Portfolio() {
     return () => {
       clearTimeout(t);
       window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("storage", handleStorageEvent);
     };
   }, []);
 
@@ -284,12 +345,10 @@ function Portfolio() {
   };
 
   const handleResetContent = () => {
-    setContent(DEFAULT_CONTENT);
-    try {
-      localStorage.removeItem("portfolio_content_v4");
-    } catch (e) {
-      console.error(e);
-    }
+    setContent(
+      (defaultPortfolioData as unknown as PortfolioContent) || DEFAULT_CONTENT,
+    );
+    clearLocalPortfolioCache();
   };
 
   const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
@@ -731,18 +790,6 @@ function Portfolio() {
                   >
                     {content.viewAllProjectsText || "View All Projects →"}
                   </a>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditorInitialTab("projects");
-                      setIsEditModalOpen(true);
-                    }}
-                    title="Customize projects and button link"
-                    className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold px-3.5 py-2 rounded-full bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-300 transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <span className="text-sm">✏️</span>
-                    <span>Edit Projects</span>
-                  </button>
                 </div>
               </div>
             </ScrollReveal>
