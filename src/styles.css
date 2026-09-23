@@ -109,10 +109,9 @@
 }
 
 /* ── SMOOTH FIXED NAVBAR ────────────────────────────────────────── */
-/* GPU-promote the fixed header so it never jitters on scroll */
+/* Isolate the header from the canvas compositing layer */
 header[class*="fixed"] {
-  will-change: transform;
-  transform: translateZ(0);
+  isolation: isolate;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }

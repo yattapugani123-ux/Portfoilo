@@ -32,15 +32,7 @@ interface PulseRipple {
   lineWidth: number;
 }
 
-interface MatrixGlyph {
-  x: number;
-  y: number;
-  vy: number;
-  text: string;
-  alpha: number;
-  size: number;
-  color: string;
-}
+// MatrixGlyph removed — floating code text was distracting and caused canvas overhead
 
 export function AiBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -75,30 +67,9 @@ export function AiBackground() {
       "rgba(234, 179, 8, ",   // Luminous Gold
     ];
 
-    const glyphTexts = [
-      "W·x + b",
-      "σ(z)",
-      "∇L_θ",
-      "SELECT *",
-      "DAX CALCULATE",
-      "dim=[256, 64]",
-      "loss: 0.0012",
-      "attention(Q,K,V)",
-      "pd.DataFrame",
-      "PowerBI",
-      "Figma UI/UX",
-      "99.8% ACC",
-      "01101",
-      "10010",
-      "SQL JOIN",
-      "ETL pipeline",
-      "KPI Matrix",
-    ];
-
     let nodes: Node[] = [];
     let packets: DataPacket[] = [];
     let ripples: PulseRipple[] = [];
-    let glyphs: MatrixGlyph[] = [];
 
     const initNodes = () => {
       width = canvas.width = window.innerWidth;
@@ -109,43 +80,27 @@ export function AiBackground() {
       canvas.height = height * dpr;
       ctx.scale(dpr, dpr);
 
-      const density = width < 768 ? 14000 : 10000;
-      const count = Math.min(Math.max(Math.floor((width * height) / density), 45), 90);
+      // Fewer nodes = less GPU work = smoother header scrolling
+      const density = width < 768 ? 22000 : 16000;
+      const count = Math.min(Math.max(Math.floor((width * height) / density), 28), 55);
 
       nodes = [];
       for (let i = 0; i < count; i++) {
         const color = nodeColors[Math.floor(Math.random() * nodeColors.length)];
         const depth = Math.random() > 0.3 ? 1 : 2;
-        // Soft, gentle, smooth floating velocity
-        const speedScale = depth === 1 ? 0.22 : 0.12;
+        const speedScale = depth === 1 ? 0.18 : 0.09;
 
         nodes.push({
           x: Math.random() * width,
           y: Math.random() * height,
           vx: (Math.random() - 0.5) * (prefersReducedMotion ? 0 : speedScale),
           vy: (Math.random() - 0.5) * (prefersReducedMotion ? 0 : speedScale),
-          radius: depth === 1 ? 1.8 + Math.random() * 2.2 : 1.1 + Math.random() * 1.2,
-          baseAlpha: depth === 1 ? 0.4 + Math.random() * 0.4 : 0.18 + Math.random() * 0.25,
-          pulseSpeed: 0.014 + Math.random() * 0.02,
+          radius: depth === 1 ? 1.6 + Math.random() * 2.0 : 1.0 + Math.random() * 1.0,
+          baseAlpha: depth === 1 ? 0.35 + Math.random() * 0.35 : 0.15 + Math.random() * 0.2,
+          pulseSpeed: 0.012 + Math.random() * 0.016,
           pulsePhase: Math.random() * Math.PI * 2,
           color,
           depth,
-        });
-      }
-
-      // Floating glyphs with smooth, soft drift
-      glyphs = [];
-      const glyphCount = width < 768 ? 10 : 20;
-      for (let g = 0; g < glyphCount; g++) {
-        const c = nodeColors[Math.floor(Math.random() * nodeColors.length)];
-        glyphs.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          vy: 0.12 + Math.random() * 0.18,
-          text: glyphTexts[Math.floor(Math.random() * glyphTexts.length)],
-          alpha: 0.06 + Math.random() * 0.09,
-          size: 10 + Math.random() * 3.5,
-          color: c,
         });
       }
 
@@ -186,23 +141,7 @@ export function AiBackground() {
       const maxConnectDist = width < 768 ? 120 : 150;
       const mouseDistThreshold = 180;
 
-      // 1. Soft Floating Mathematical Glyphs
-      if (!prefersReducedMotion) {
-        for (let g = 0; g < glyphs.length; g++) {
-          const gl = glyphs[g];
-          gl.y -= gl.vy * delta * 60;
-          if (gl.y < -30) {
-            gl.y = height + 30;
-            gl.x = Math.random() * width;
-            gl.text = glyphTexts[Math.floor(Math.random() * glyphTexts.length)];
-          }
-          ctx.font = `600 ${gl.size}px "JetBrains Mono", Consolas, monospace`;
-          ctx.fillStyle = `${gl.color}${gl.alpha.toFixed(3)})`;
-          ctx.fillText(gl.text, gl.x, gl.y);
-        }
-      }
-
-      // 2. Smooth, Soft Node Floating & Physics
+      // 1. Smooth, Soft Node Floating & Physics
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
         a.pulsePhase += a.pulseSpeed;
@@ -420,20 +359,6 @@ export function AiBackground() {
       <div className="absolute -top-40 -left-40 w-[550px] h-[550px] rounded-full bg-cyan-500/12 blur-[130px] pointer-events-none animate-blob-1" />
       <div className="absolute top-1/3 -right-40 w-[600px] h-[600px] rounded-full bg-amber-500/12 blur-[140px] pointer-events-none animate-blob-2" />
       <div className="absolute bottom-10 left-1/4 w-[650px] h-[650px] rounded-full bg-purple-600/10 blur-[150px] pointer-events-none animate-blob-1" />
-
-      {/* Cybernetic soft horizon depth grid */}
-      <div
-        className="absolute bottom-0 inset-x-0 h-64 pointer-events-none opacity-20"
-        style={{
-          backgroundImage: `linear-gradient(to right, rgba(56, 189, 248, 0.15) 1px, transparent 1px),
-                            linear-gradient(to bottom, rgba(168, 85, 247, 0.15) 1px, transparent 1px)`,
-          backgroundSize: "36px 36px",
-          maskImage: "linear-gradient(to top, black 20%, transparent 95%)",
-          WebkitMaskImage: "linear-gradient(to top, black 20%, transparent 95%)",
-          transform: "perspective(320px) rotateX(45deg)",
-          transformOrigin: "bottom center",
-        }}
-      />
 
       {/* Interactive AI neural canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-90" />
