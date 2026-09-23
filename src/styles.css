@@ -89,6 +89,7 @@
     scroll-behavior: smooth;
     scroll-padding-top: 5.5rem;
     color-scheme: dark;
+    /* Do NOT add overflow-x:hidden on html — it breaks fixed/sticky positioning */
   }
   body {
     background-color: var(--background);
@@ -106,6 +107,22 @@
     background: oklch(0.76 0.15 48 / 0.4);
   }
 }
+
+/* ── SMOOTH FIXED NAVBAR ────────────────────────────────────────── */
+/* GPU-promote the fixed header so it never jitters on scroll */
+header[class*="fixed"] {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+/* Silky nav pill active-link transition */
+header nav a {
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s ease;
+}
+
 
 /* ── ULTRA-SMOOTH CUSTOM SCROLLBAR ────────────────────────────── */
 ::-webkit-scrollbar {

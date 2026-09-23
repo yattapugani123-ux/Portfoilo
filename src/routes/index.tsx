@@ -219,51 +219,50 @@ function Portfolio() {
     const defaultData =
       (defaultPortfolioData as unknown as PortfolioContent) || DEFAULT_CONTENT;
 
-    // 1. Initial optimistic paint from localStorage if available
-    let initialLocal: PortfolioContent | null = null;
-    try {
-      const saved = localStorage.getItem("portfolio_content_v4");
-      if (saved) {
-        initialLocal = JSON.parse(saved);
-        setContent({
-          ...defaultData,
-          ...initialLocal,
-        });
-      } else {
-        setContent(defaultData);
-      }
-    } catch (e) {
-      console.error(e);
-      setContent(defaultData);
-    }
-
-    // 2. Fetch live published data from Supabase cloud database
-    const syncLatestData = async () => {
+    // Single-pass data load: Supabase is source of truth.
+    // localStorage is only used as instant fallback if Supabase fails.
+    const loadData = async () => {
       try {
+        // Try Supabase first (cloud = source of truth)
         const cloudData = await fetchLatestPortfolioContent();
         if (cloudData && cloudData.name) {
-          setContent((prev) => ({
-            ...prev,
-            ...cloudData,
-          }));
+          // Got fresh cloud data — set once, no double render
+          setContent({ ...defaultData, ...cloudData });
+          // Also update localStorage cache for offline resilience
+          try {
+            localStorage.setItem("portfolio_content_v4", JSON.stringify({ ...defaultData, ...cloudData }));
+          } catch {}
+          return;
         }
       } catch (err) {
-        console.warn("Live portfolio sync error:", err);
+        console.warn("Supabase fetch failed, falling back to localStorage:", err);
+      }
+
+      // Supabase unavailable — use localStorage cache or default
+      try {
+        const saved = localStorage.getItem("portfolio_content_v4");
+        if (saved) {
+          const localData = JSON.parse(saved);
+          setContent({ ...defaultData, ...localData });
+        } else {
+          setContent(defaultData);
+        }
+      } catch {
+        setContent(defaultData);
       }
     };
 
-    // Trigger live network sync immediately on mount
-    syncLatestData();
+    loadData();
 
-    // 3. Re-sync automatically when user switches back to this tab
+    // Re-sync when user switches back to this tab
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        syncLatestData();
+        loadData();
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // 4. Cross-tab synchronization on this device
+    // Cross-tab sync (when another tab saves to localStorage)
     const handleStorageEvent = (e: StorageEvent) => {
       if (e.key === "portfolio_content_v4" && e.newValue) {
         try {
@@ -277,9 +276,9 @@ function Portfolio() {
     const onScroll = () => {
       setShowTopBtn(window.scrollY > 420);
 
-      // Active nav link spy
+      // Smooth navbar active-section spy — offset matches fixed header height
       const sections = NAV.map((n) => document.getElementById(n.id));
-      const y = window.scrollY + 160;
+      const y = window.scrollY + 100;
       for (let i = sections.length - 1; i >= 0; i--) {
         const s = sections[i];
         if (s && s.offsetTop <= y) {
