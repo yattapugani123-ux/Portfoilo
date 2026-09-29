@@ -35,7 +35,31 @@ export interface ProjectItem {
   client?: string;
   status?: string;
   model?: string;
+
+  // Dedicated Outside vs Inside separate editable fields
+  outsideTitle?: string;
+  outsideDescription?: string;
+  insideTitle?: string;
+  insideDescription?: string;
+  images?: string[]; // 3 images for the inside auto-rotate circle
+  platform?: string; // Platform category tag e.g. "POWER BI · PLATFORM"
+  modalUrl?: string; // Browser URL in modal
+  metric1Label?: string;
+  metric1Value?: string;
+  metric2Label?: string;
+  metric2Value?: string;
+  metric3Label?: string;
+  metric3Value?: string;
+  viewCaseStudyText?: string;
 }
+
+export {
+  getProjectOutsideTitle,
+  getProjectOutsideDesc,
+  getProjectInsideTitle,
+  getProjectInsideDesc,
+  getProjectImages,
+} from "@/lib/projectHelpers";
 
 export interface ToolItem {
   n: string;
@@ -96,6 +120,19 @@ export interface PortfolioContent {
   projects: ProjectItem[];
   journey: JourneyItem[];
   certifications: CertItem[];
+
+  // Header, Logo, Navigation & Customization
+  logoText?: string;
+  logoImageUrl?: string;
+  brandName?: string;
+  connectButtonText?: string;
+  connectButtonUrl?: string;
+  heroBadgeText?: string;
+  resumeButtonText?: string;
+  projectsButtonText?: string;
+  projectsSectionBadge?: string;
+  projectsSectionTitle?: string;
+  projectsSectionSub?: string;
 }
 
 interface EditPortfolioModalProps {
@@ -331,7 +368,7 @@ export function EditPortfolioModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Commit any raw tag strings and new tag inputs
+    // Commit any raw tag strings, outside/inside fields and images
     const committedProjects = formData.projects.map((proj, idx) => {
       let tags = [...proj.tags];
       const raw = tagInputs[idx];
@@ -344,7 +381,32 @@ export function EditPortfolioModal({
         const fromPending = pendingNew.split(",").map((s) => s.trim()).filter(Boolean);
         tags = Array.from(new Set([...tags, ...fromPending]));
       }
-      return { ...proj, tags };
+
+      const outTitle = (proj.outsideTitle && proj.outsideTitle.trim()) || proj.t || "Untitled Project";
+      const outDesc = (proj.outsideDescription && proj.outsideDescription.trim()) || proj.d || "";
+      const inTitle = (proj.insideTitle && proj.insideTitle.trim()) || outTitle;
+      const inDesc = (proj.insideDescription && proj.insideDescription.trim()) || outDesc;
+
+      const rawImgs = Array.isArray(proj.images) ? proj.images : (proj.img ? [proj.img] : []);
+      const imagesList = [
+        rawImgs[0] ? rawImgs[0].trim() : (proj.img ? proj.img.trim() : ""),
+        rawImgs[1] ? rawImgs[1].trim() : "",
+        rawImgs[2] ? rawImgs[2].trim() : "",
+      ];
+      const primaryImg = imagesList[0] || proj.img || "";
+
+      return {
+        ...proj,
+        t: outTitle,
+        d: outDesc,
+        outsideTitle: outTitle,
+        outsideDescription: outDesc,
+        insideTitle: inTitle,
+        insideDescription: inDesc,
+        img: primaryImg,
+        images: imagesList,
+        tags,
+      };
     });
 
     const finalData = deduplicateContent({
@@ -754,8 +816,142 @@ export function EditPortfolioModal({
               {/* TAB: PROFILE */}
               {activeTab === "profile" && (
                 <div className="space-y-4 animate-in fade-in duration-150">
+                  {/* BRANDING & LOGO SETTINGS */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🎨</span>
+                        <div>
+                          <h4 className="text-sm font-bold text-foreground">Logo &amp; Header Branding</h4>
+                          <p className="text-xs text-muted-foreground">
+                            Customize logo badge, logo image, brand name, and header buttons
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30">
+                        Front Settings
+                      </span>
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                          Logo Initials / Text
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.logoText ?? "YG"}
+                          placeholder="YG"
+                          onChange={(e) => setFormData({ ...formData, logoText: e.target.value })}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Short letters in navbar badge (e.g. YG)
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                          Brand Name in Navbar
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.brandName ?? ""}
+                          placeholder={formData.name.split(" ").slice(0, 2).join(" ") || "Your Name"}
+                          onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Visible next to logo in navbar
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                          Logo Image URL (Optional)
+                        </label>
+                        <input
+                          type="url"
+                          className={inputClass}
+                          value={formData.logoImageUrl ?? ""}
+                          placeholder="https://.../logo.png"
+                          onChange={(e) => setFormData({ ...formData, logoImageUrl: e.target.value })}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Replaces or overlays the badge
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-3 pt-1 border-t border-white/5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                          Header Button Label
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.connectButtonText ?? "Let's Connect"}
+                          placeholder="Let's Connect"
+                          onChange={(e) => setFormData({ ...formData, connectButtonText: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                          Header Button Link
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.connectButtonUrl ?? "#contact"}
+                          placeholder="#contact"
+                          onChange={(e) => setFormData({ ...formData, connectButtonUrl: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                          Hero Badge Text
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.heroBadgeText ?? "Portfolio 2026"}
+                          placeholder="Portfolio 2026"
+                          onChange={(e) => setFormData({ ...formData, heroBadgeText: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-3 pt-1 border-t border-white/5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                          Resume Button Label
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.resumeButtonText ?? "Download Resume"}
+                          placeholder="Download Resume"
+                          onChange={(e) => setFormData({ ...formData, resumeButtonText: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                          Projects Button Label
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.projectsButtonText ?? "View Projects ↓"}
+                          placeholder="View Projects ↓"
+                          onChange={(e) => setFormData({ ...formData, projectsButtonText: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="p-3 rounded-2xl bg-muted/40 border border-white/5">
-                    <h4 className="text-sm font-bold text-foreground">Profile & Identity</h4>
+                    <h4 className="text-sm font-bold text-foreground">Profile &amp; Identity</h4>
                     <p className="text-xs text-muted-foreground">
                       Customize your name, professional title, resume link, and bio
                     </p>
@@ -939,269 +1135,612 @@ export function EditPortfolioModal({
                         )}
                       </div>
 
-                      <div>
-                        <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
-                          Title
-                        </label>
-                        <input
-                          type="text"
-                          className={inputClass}
-                          value={p.t}
-                          onChange={(e) => {
-                            const next = [...formData.projects];
-                            next[idx] = { ...next[idx], t: e.target.value };
-                            setFormData({ ...formData, projects: next });
-                          }}
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
-                          Description
-                        </label>
-                        <textarea
-                          rows={2}
-                          className={inputClass}
-                          value={p.d}
-                          onChange={(e) => {
-                            const next = [...formData.projects];
-                            next[idx] = { ...next[idx], d: e.target.value };
-                            setFormData({ ...formData, projects: next });
-                          }}
-                          required
-                        />
-                      </div>
-
-                      {/* TAGS & SKILLS SECTION */}
-                      <div className="p-3.5 rounded-xl bg-background/50 border border-white/5 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-[11px] text-foreground font-bold">
-                            Skills &amp; Tech Tags ({p.tags.length})
-                          </label>
-                          <span className="text-[10px] text-muted-foreground">Click ✕ to remove</span>
+                      {/* ──────── OUTSIDE CARD SECTION (Image 1) ──────── */}
+                      <div className="p-4 rounded-2xl bg-amber-500/[0.04] border border-amber-500/20 space-y-3">
+                        <div className="flex items-center justify-between pb-1 border-b border-amber-500/15">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm">🎴</span>
+                            <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                              Outside Card Settings (Homepage Carousel)
+                            </span>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-300 font-bold border border-amber-400/25">
+                            Image 1 - Outside
+                          </span>
                         </div>
 
-                        {/* Current Tag Chips */}
-                        {p.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {p.tags.map((tag, ti) => (
-                              <span
-                                key={ti}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 text-xs font-bold"
-                              >
-                                <span>{tag}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveTagFromProject(idx, ti)}
-                                  className="text-cyan-400/60 hover:text-red-400 transition ml-0.5"
-                                  title={`Remove ${tag}`}
-                                >
-                                  ✕
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">No tags added yet.</p>
-                        )}
-
-                        {/* Inline Add Tag Input */}
-                        <div className="flex items-center gap-2 pt-1">
+                        <div>
+                          <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                            Outside Card Title
+                          </label>
                           <input
                             type="text"
                             className={inputClass}
-                            value={newTagInputs[idx] || ""}
-                            placeholder="Add a skill (e.g. Power BI, DAX, SQL, Figma)..."
-                            onChange={(e) =>
-                              setNewTagInputs((prev) => ({ ...prev, [idx]: e.target.value }))
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
+                            value={p.outsideTitle !== undefined ? p.outsideTitle : p.t}
+                            placeholder="e.g. Web-Development-Analysis"
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = {
+                                ...next[idx],
+                                outsideTitle: e.target.value,
+                                t: e.target.value,
+                              };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                            Outside Card Description (Summary)
+                          </label>
+                          <textarea
+                            rows={2}
+                            className={inputClass}
+                            value={p.outsideDescription !== undefined ? p.outsideDescription : p.d}
+                            placeholder="Brief summary shown on the outside card..."
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = {
+                                ...next[idx],
+                                outsideDescription: e.target.value,
+                                d: e.target.value,
+                              };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                            required
+                          />
+                        </div>
+
+                        {/* Outside Card Cover Image */}
+                        <div>
+                          <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                            Outside Card Cover Image URL (optional)
+                          </label>
+                          <input
+                            type="url"
+                            className={inputClass}
+                            value={p.img || ""}
+                            placeholder="https://example.com/project-cover.png"
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              const newImg = e.target.value;
+                              const prevImgs = next[idx].images || [];
+                              const updatedImgs = [newImg, prevImgs[1] || "", prevImgs[2] || ""];
+                              next[idx] = { ...next[idx], img: newImg, images: updatedImgs };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                          />
+                          {p.img && (
+                            <div className="mt-2 rounded-xl overflow-hidden border border-white/10 h-24 w-full bg-black/40">
+                              <img
+                                src={p.img}
+                                alt="Cover preview"
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = "none";
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Outside Action Text */}
+                        <div>
+                          <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                            Card Button Text
+                          </label>
+                          <input
+                            type="text"
+                            className={inputClass}
+                            value={p.viewCaseStudyText || "View Case Study →"}
+                            placeholder="View Case Study →"
+                            onChange={(e) => {
+                              const next = [...formData.projects];
+                              next[idx] = { ...next[idx], viewCaseStudyText: e.target.value };
+                              setFormData({ ...formData, projects: next });
+                            }}
+                          />
+                        </div>
+
+                        {/* TAGS & SKILLS SECTION */}
+                        <div className="p-3.5 rounded-xl bg-background/50 border border-white/5 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[11px] text-foreground font-bold">
+                              Skills &amp; Tech Badges ({p.tags.length})
+                            </label>
+                            <span className="text-[10px] text-muted-foreground">Click ✕ to remove</span>
+                          </div>
+
+                          {/* Current Tag Chips */}
+                          {p.tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {p.tags.map((tag, ti) => (
+                                <span
+                                  key={ti}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 text-xs font-bold"
+                                >
+                                  <span>{tag}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTagFromProject(idx, ti)}
+                                    className="text-cyan-400/60 hover:text-red-400 transition ml-0.5"
+                                    title={`Remove ${tag}`}
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">No tags added yet.</p>
+                          )}
+
+                          {/* Inline Add Tag Input */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={newTagInputs[idx] || ""}
+                              placeholder="Add a skill (e.g. Power BI, DAX, SQL, Figma)..."
+                              onChange={(e) =>
+                                setNewTagInputs((prev) => ({ ...prev, [idx]: e.target.value }))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  if (newTagInputs[idx]?.trim()) {
+                                    const parts = newTagInputs[idx].split(",").map((s) => s.trim()).filter(Boolean);
+                                    parts.forEach((part) => handleAddTagToProject(idx, part));
+                                    setNewTagInputs((prev) => ({ ...prev, [idx]: "" }));
+                                  }
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
                                 if (newTagInputs[idx]?.trim()) {
-                                  // Can add multiple comma-separated tags or single
                                   const parts = newTagInputs[idx].split(",").map((s) => s.trim()).filter(Boolean);
                                   parts.forEach((part) => handleAddTagToProject(idx, part));
                                   setNewTagInputs((prev) => ({ ...prev, [idx]: "" }));
                                 }
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (newTagInputs[idx]?.trim()) {
-                                const parts = newTagInputs[idx].split(",").map((s) => s.trim()).filter(Boolean);
-                                parts.forEach((part) => handleAddTagToProject(idx, part));
-                                setNewTagInputs((prev) => ({ ...prev, [idx]: "" }));
-                              }
-                            }}
-                            className="px-3.5 py-2 rounded-xl bg-accent text-accent-foreground text-xs font-bold shrink-0 hover:opacity-90 active:scale-95 transition"
-                          >
-                            + Add Tag
-                          </button>
-                        </div>
-
-                        {/* Quick-add buttons from master tools */}
-                        {formData.tools && formData.tools.length > 0 && (
-                          <div className="pt-1">
-                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block mb-1.5">
-                              ⚡ Quick-Add from your Master Skills:
-                            </span>
-                            <div className="flex flex-wrap gap-1">
-                              {formData.tools
-                                .filter((tool) => !p.tags.some((t) => t.toLowerCase() === tool.n.toLowerCase()))
-                                .slice(0, 10)
-                                .map((tool, ti) => (
-                                  <button
-                                    key={ti}
-                                    type="button"
-                                    onClick={() => handleAddTagToProject(idx, tool.n)}
-                                    className="px-2 py-0.5 rounded-md bg-muted hover:bg-accent/20 border border-white/10 text-muted-foreground hover:text-foreground text-[11px] font-medium transition flex items-center gap-1 active:scale-95"
-                                    title={`Add ${tool.n} to this project`}
-                                  >
-                                    <span>+</span>
-                                    <span>{tool.i}</span>
-                                    <span>{tool.n}</span>
-                                  </button>
-                                ))}
-                            </div>
+                              }}
+                              className="px-3.5 py-2 rounded-xl bg-accent text-accent-foreground text-xs font-bold shrink-0 hover:opacity-90 active:scale-95 transition"
+                            >
+                              + Add Tag
+                            </button>
                           </div>
-                        )}
+
+                          {/* Quick-add buttons from master tools */}
+                          {formData.tools && formData.tools.length > 0 && (
+                            <div className="pt-1">
+                              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block mb-1.5">
+                                ⚡ Quick-Add from your Master Skills:
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {formData.tools
+                                  .filter((tool) => !p.tags.some((t) => t.toLowerCase() === tool.n.toLowerCase()))
+                                  .slice(0, 10)
+                                  .map((tool, ti) => (
+                                    <button
+                                      key={ti}
+                                      type="button"
+                                      onClick={() => handleAddTagToProject(idx, tool.n)}
+                                      className="px-2 py-0.5 rounded-md bg-muted hover:bg-accent/20 border border-white/10 text-muted-foreground hover:text-foreground text-[11px] font-medium transition flex items-center gap-1 active:scale-95"
+                                      title={`Add ${tool.n} to this project`}
+                                    >
+                                      <span>+</span>
+                                      <span>{tool.i}</span>
+                                      <span>{tool.n}</span>
+                                    </button>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Project Image URL */}
-                      <div>
-                        <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
-                          Project Image / Screenshot URL (optional)
-                        </label>
-                        <input
-                          type="url"
-                          className={inputClass}
-                          value={p.img || ""}
-                          placeholder="https://example.com/project-screenshot.png"
-                          onChange={(e) => {
-                            const next = [...formData.projects];
-                            next[idx] = { ...next[idx], img: e.target.value };
-                            setFormData({ ...formData, projects: next });
-                          }}
-                        />
-                        {p.img && (
-                          <div className="mt-2 rounded-xl overflow-hidden border border-white/10 h-24 w-full">
-                            <img
-                              src={p.img}
-                              alt="Project preview"
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = "none";
+                      {/* ──────── INSIDE CASE STUDY MODAL SECTION (Image 2) ──────── */}
+                      <div className="p-4 rounded-2xl bg-cyan-500/[0.04] border border-cyan-500/25 space-y-3.5">
+                        <div className="flex items-center justify-between pb-1 border-b border-cyan-500/15">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm">🔬</span>
+                            <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
+                              Inside Case Study Settings (Popup Detail Modal)
+                            </span>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-400/15 text-cyan-300 font-bold border border-cyan-400/25">
+                            Image 2 - Inside
+                          </span>
+                        </div>
+
+                        <p className="text-[11px] text-slate-300">
+                          These fields are shown when visitors open the Case Study modal. You can set different title, description, and up to 3 rotating screenshot images here.
+                        </p>
+
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                              Inside Project Title (Separate)
+                            </label>
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={p.insideTitle !== undefined ? p.insideTitle : (p.outsideTitle || p.t)}
+                              placeholder={p.outsideTitle || p.t || "Inside modal title"}
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], insideTitle: e.target.value };
+                                setFormData({ ...formData, projects: next });
                               }}
                             />
                           </div>
-                        )}
-                      </div>
+                          <div>
+                            <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                              Year Tag
+                            </label>
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={p.year || "2025"}
+                              placeholder="2025"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], year: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+                        </div>
 
-                      {/* Live Demo Link & Source Code Link */}
-                      <div className="grid sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
-                            Live Demo Link (optional)
+                            Inside Detailed Description (Separate)
                           </label>
-                          <input
-                            type="url"
+                          <textarea
+                            rows={3}
                             className={inputClass}
-                            value={p.link || ""}
-                            placeholder="https://your-dashboard.com"
+                            value={p.insideDescription !== undefined ? p.insideDescription : (p.outsideDescription || p.d)}
+                            placeholder="In-depth case study explanation shown inside the modal..."
                             onChange={(e) => {
                               const next = [...formData.projects];
-                              next[idx] = { ...next[idx], link: e.target.value };
+                              next[idx] = { ...next[idx], insideDescription: e.target.value };
                               setFormData({ ...formData, projects: next });
                             }}
                           />
                         </div>
-                        <div>
-                          <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
-                            Source / GitHub Link (optional)
-                          </label>
-                          <input
-                            type="url"
-                            className={inputClass}
-                            value={p.sourceLink || ""}
-                            placeholder="https://github.com/..."
-                            onChange={(e) => {
-                              const next = [...formData.projects];
-                              next[idx] = { ...next[idx], sourceLink: e.target.value };
-                              setFormData({ ...formData, projects: next });
-                            }}
-                          />
-                        </div>
-                      </div>
 
-                      {/* Case File Metadata: Year, Role, Client, Status */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                        <div>
-                          <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
-                            Year
-                          </label>
-                          <input
-                            type="text"
-                            className={inputClass}
-                            value={p.year || "2025"}
-                            placeholder="2025"
-                            onChange={(e) => {
-                              const next = [...formData.projects];
-                              next[idx] = { ...next[idx], year: e.target.value };
-                              setFormData({ ...formData, projects: next });
-                            }}
-                          />
+                        {/* 3 IMAGES WITH AUTO ROTATE CIRCLE */}
+                        <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-bold text-white flex items-center gap-1.5">
+                              <span>🔄 3 Carousel Images (Auto Rotate Circle)</span>
+                            </label>
+                            <span className="text-[10px] text-emerald-400 font-mono">
+                              3 Screenshots / Slides
+                            </span>
+                          </div>
+
+                          {/* Image 1 URL */}
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-semibold uppercase tracking-wider">
+                              Screenshot 1 URL (Main / Overview)
+                            </label>
+                            <input
+                              type="url"
+                              className={inputClass}
+                              value={p.images?.[0] ?? (p.img || "")}
+                              placeholder="https://example.com/screenshot1.png"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                const currentImgs = [...(next[idx].images || [next[idx].img || "", "", ""])];
+                                currentImgs[0] = e.target.value;
+                                next[idx] = {
+                                  ...next[idx],
+                                  img: e.target.value,
+                                  images: [currentImgs[0], currentImgs[1] || "", currentImgs[2] || ""],
+                                };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+
+                          {/* Image 2 URL */}
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-semibold uppercase tracking-wider">
+                              Screenshot 2 URL (Dashboard / Charts)
+                            </label>
+                            <input
+                              type="url"
+                              className={inputClass}
+                              value={p.images?.[1] ?? ""}
+                              placeholder="https://example.com/screenshot2.png"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                const currentImgs = [...(next[idx].images || [next[idx].img || "", "", ""])];
+                                currentImgs[1] = e.target.value;
+                                next[idx] = {
+                                  ...next[idx],
+                                  images: [currentImgs[0] || "", currentImgs[1], currentImgs[2] || ""],
+                                };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+
+                          {/* Image 3 URL */}
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-semibold uppercase tracking-wider">
+                              Screenshot 3 URL (Insights / Prototype)
+                            </label>
+                            <input
+                              type="url"
+                              className={inputClass}
+                              value={p.images?.[2] ?? ""}
+                              placeholder="https://example.com/screenshot3.png"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                const currentImgs = [...(next[idx].images || [next[idx].img || "", "", ""])];
+                                currentImgs[2] = e.target.value;
+                                next[idx] = {
+                                  ...next[idx],
+                                  images: [currentImgs[0] || "", currentImgs[1] || "", currentImgs[2]],
+                                };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+
+                          {/* Live 3-thumbnail preview row */}
+                          <div className="grid grid-cols-3 gap-2 pt-1">
+                            {[0, 1, 2].map((slotIdx) => {
+                              const imgUrl = (p.images && p.images[slotIdx]) || (slotIdx === 0 ? p.img : "");
+                              return (
+                                <div
+                                  key={slotIdx}
+                                  className="h-16 rounded-lg bg-black/60 border border-white/10 overflow-hidden flex flex-col items-center justify-center text-center p-1"
+                                >
+                                  {imgUrl ? (
+                                    <img
+                                      src={imgUrl}
+                                      alt={`Slide ${slotIdx + 1}`}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = "none";
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-[10px] text-slate-500 font-mono">
+                                      Slide {slotIdx + 1}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
-                            Role
-                          </label>
-                          <input
-                            type="text"
-                            className={inputClass}
-                            value={p.role || "Data Analyst"}
-                            placeholder="Solo Developer"
-                            onChange={(e) => {
-                              const next = [...formData.projects];
-                              next[idx] = { ...next[idx], role: e.target.value };
-                              setFormData({ ...formData, projects: next });
-                            }}
-                          />
+
+                        {/* Top Showcase Window Meta */}
+                        <div className="grid sm:grid-cols-3 gap-2.5">
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                              Platform Tag
+                            </label>
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={p.platform || (p.tags[0] ? `${p.tags[0].toUpperCase()} · PLATFORM` : "POWER BI · PLATFORM")}
+                              placeholder="POWER BI · PLATFORM"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], platform: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                              Live System Badge
+                            </label>
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={p.status || "LIVE SYSTEM"}
+                              placeholder="LIVE SYSTEM"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], status: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                              Browser URL
+                            </label>
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={p.modalUrl || ""}
+                              placeholder="https://portfolio.ganesh/project/..."
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], modalUrl: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
-                            Client
+
+                        {/* 3 Showcase Metrics */}
+                        <div className="space-y-1.5 pt-1">
+                          <label className="block text-[11px] font-bold text-foreground">
+                            3 Showcase Highlight Metrics
                           </label>
-                          <input
-                            type="text"
-                            className={inputClass}
-                            value={p.client || "Personal Project"}
-                            placeholder="Personal Project"
-                            onChange={(e) => {
-                              const next = [...formData.projects];
-                              next[idx] = { ...next[idx], client: e.target.value };
-                              setFormData({ ...formData, projects: next });
-                            }}
-                          />
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <input
+                                type="text"
+                                className={`${inputClass} text-[10px] font-mono`}
+                                value={p.metric1Label || "ANALYTICS ENGINE"}
+                                placeholder="ANALYTICS ENGINE"
+                                onChange={(e) => {
+                                  const next = [...formData.projects];
+                                  next[idx] = { ...next[idx], metric1Label: e.target.value };
+                                  setFormData({ ...formData, projects: next });
+                                }}
+                              />
+                              <input
+                                type="text"
+                                className={`${inputClass} mt-1 font-bold text-xs`}
+                                value={p.metric1Value || (p.tags[0] || "Power BI")}
+                                placeholder="Power BI"
+                                onChange={(e) => {
+                                  const next = [...formData.projects];
+                                  next[idx] = { ...next[idx], metric1Value: e.target.value };
+                                  setFormData({ ...formData, projects: next });
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                className={`${inputClass} text-[10px] font-mono`}
+                                value={p.metric2Label || "DATA ACCURACY"}
+                                placeholder="DATA ACCURACY"
+                                onChange={(e) => {
+                                  const next = [...formData.projects];
+                                  next[idx] = { ...next[idx], metric2Label: e.target.value };
+                                  setFormData({ ...formData, projects: next });
+                                }}
+                              />
+                              <input
+                                type="text"
+                                className={`${inputClass} mt-1 font-bold text-xs`}
+                                value={p.metric2Value || "99.8% Verified"}
+                                placeholder="99.8% Verified"
+                                onChange={(e) => {
+                                  const next = [...formData.projects];
+                                  next[idx] = { ...next[idx], metric2Value: e.target.value };
+                                  setFormData({ ...formData, projects: next });
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                className={`${inputClass} text-[10px] font-mono`}
+                                value={p.metric3Label || "COMPONENTS"}
+                                placeholder="COMPONENTS"
+                                onChange={(e) => {
+                                  const next = [...formData.projects];
+                                  next[idx] = { ...next[idx], metric3Label: e.target.value };
+                                  setFormData({ ...formData, projects: next });
+                                }}
+                              />
+                              <input
+                                type="text"
+                                className={`${inputClass} mt-1 font-bold text-xs`}
+                                value={p.metric3Value || `${p.tags.length} Modules`}
+                                placeholder="7 Modules"
+                                onChange={(e) => {
+                                  const next = [...formData.projects];
+                                  next[idx] = { ...next[idx], metric3Value: e.target.value };
+                                  setFormData({ ...formData, projects: next });
+                                }}
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
-                            Status
-                          </label>
-                          <input
-                            type="text"
-                            className={inputClass}
-                            value={p.status || "Shipped"}
-                            placeholder="Shipped"
-                            onChange={(e) => {
-                              const next = [...formData.projects];
-                              next[idx] = { ...next[idx], status: e.target.value };
-                              setFormData({ ...formData, projects: next });
-                            }}
-                          />
+
+                        {/* Specs: Model, Client, Role */}
+                        <div className="grid grid-cols-3 gap-2 pt-1">
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                              AI Model / Tool
+                            </label>
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={p.model || (p.tags[0] || "Power BI")}
+                              placeholder="Power BI"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], model: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                              Client / Auth
+                            </label>
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={p.client || "Personal Project"}
+                              placeholder="Personal Project"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], client: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground mb-1 font-bold uppercase tracking-wider">
+                              Role
+                            </label>
+                            <input
+                              type="text"
+                              className={inputClass}
+                              value={p.role || "Solo Developer"}
+                              placeholder="Solo Developer"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], role: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Live Demo Link & Source Code Link */}
+                        <div className="grid sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                              Live Demo Link
+                            </label>
+                            <input
+                              type="url"
+                              className={inputClass}
+                              value={p.link || ""}
+                              placeholder="https://your-dashboard.com"
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], link: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-muted-foreground mb-1 font-semibold">
+                              Source Code / GitHub Link
+                            </label>
+                            <input
+                              type="url"
+                              className={inputClass}
+                              value={p.sourceLink || ""}
+                              placeholder="https://github.com/..."
+                              onChange={(e) => {
+                                const next = [...formData.projects];
+                                next[idx] = { ...next[idx], sourceLink: e.target.value };
+                                setFormData({ ...formData, projects: next });
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>

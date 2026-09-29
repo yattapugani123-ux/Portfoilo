@@ -3,6 +3,13 @@ import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import profileImg from "@/assets/ganesh.png";
 import { ScrollReveal } from "@/components/ScrollReveal";
 import type { PortfolioContent, EditorTab, ProjectItem } from "@/components/EditPortfolioModal";
+import {
+  getProjectOutsideTitle,
+  getProjectOutsideDesc,
+  getProjectInsideTitle,
+  getProjectInsideDesc,
+  getProjectImages,
+} from "@/lib/projectHelpers";
 import defaultPortfolioData from "@/data/portfolioData.json";
 import {
   savePortfolioContent,
@@ -214,6 +221,54 @@ function Portfolio() {
   // visibility-change reloads while editing (prevents duplicate data)
   const isEditModalOpenRef = useRef(false);
 
+  // Smooth navbar sliding pill indicator and programmatic scroll lock
+  const isManualNavScrollRef = useRef(false);
+  const manualNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navContainerRef = useRef<HTMLUListElement | null>(null);
+  const navItemRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [navPill, setNavPill] = useState({ left: 0, width: 0, opacity: 0 });
+
+  // Horizontal circular carousel controls
+  const [isMarqueePaused, setIsMarqueePaused] = useState(false);
+  const carouselTrackRef = useRef<HTMLDivElement | null>(null);
+
+  const handleCarouselScroll = (direction: "left" | "right") => {
+    if (carouselTrackRef.current) {
+      const shift = 340;
+      carouselTrackRef.current.scrollBy({
+        left: direction === "left" ? -shift : shift,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  // Update sliding pill indicator position whenever active changes or window resizes
+  // offsetLeft is measured relative to the <ul> container so the pill slides correctly
+  useEffect(() => {
+    const updatePill = () => {
+      const activeEl = navItemRefs.current[active];
+      const container = navContainerRef.current;
+      if (activeEl && container) {
+        // Get bounding rects relative to viewport so we can compute offset inside the ul
+        const containerRect = container.getBoundingClientRect();
+        const elRect = activeEl.getBoundingClientRect();
+        setNavPill({
+          left: elRect.left - containerRect.left + container.scrollLeft,
+          width: elRect.width,
+          opacity: 1,
+        });
+      }
+    };
+    updatePill();
+    // Re-measure after a short delay so the DOM has settled after any scroll
+    const timer = setTimeout(updatePill, 60);
+    window.addEventListener("resize", updatePill);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updatePill);
+    };
+  }, [active, pageReady]);
+
   const [typedRole, setTypedRole] = useState("");
   const [roleIndex, setRoleIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -292,9 +347,12 @@ function Portfolio() {
     const onScroll = () => {
       setShowTopBtn(window.scrollY > 420);
 
+      // Skip scroll-spy while programmatic smooth scrolling is active to avoid bouncing/flickering
+      if (isManualNavScrollRef.current) return;
+
       // Smooth navbar active-section spy — offset matches fixed header height
       const sections = NAV.map((n) => document.getElementById(n.id));
-      const y = window.scrollY + 100;
+      const y = window.scrollY + 120;
       for (let i = sections.length - 1; i >= 0; i--) {
         const s = sections[i];
         if (s && s.offsetTop <= y) {
@@ -369,6 +427,11 @@ function Portfolio() {
 
   const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
+    (e.currentTarget as HTMLElement)?.blur();
+    setActive(id);
+    isManualNavScrollRef.current = true;
+    if (manualNavTimerRef.current) clearTimeout(manualNavTimerRef.current);
+
     const el = document.getElementById(id);
     if (el) {
       const top = el.getBoundingClientRect().top + window.scrollY - 85;
@@ -376,9 +439,12 @@ function Portfolio() {
         top,
         behavior: "smooth",
       });
-      setActive(id);
       window.history.pushState(null, "", `#${id}`);
     }
+    // Release manual scroll lock once smooth scroll settles
+    manualNavTimerRef.current = setTimeout(() => {
+      isManualNavScrollRef.current = false;
+    }, 850);
   };
 
   const socials = [
@@ -412,53 +478,89 @@ function Portfolio() {
         <CustomCursor />
       </Suspense>
 
-      {/* Floating Glassmorphic Header Bar with Smooth Backdrop Transition */}
-      <header className="fixed top-0 inset-x-0 z-50 py-3 px-4 md:px-6 transition-all duration-300">
-        <div className="mx-auto max-w-7xl">
+      {/* Floating Glassmorphic Header Bar with Smooth Sliding Pill Indicator */}
+      <header className="fixed top-0 inset-x-0 z-50 py-3 px-4 xl:px-10 transition-all duration-300">
           <nav className="rounded-full bg-card/85 backdrop-blur-xl border border-white/10 px-4 md:px-6 py-2.5 flex items-center justify-between shadow-lift transition-all duration-300">
             <a
               href="#home"
               onClick={(e) => scrollToSection(e, "home")}
               className="flex items-center gap-2.5 font-bold tracking-tight text-foreground hover:opacity-90 transition duration-300"
             >
-              <span className="h-8 w-8 rounded-lg bg-accent text-accent-foreground grid place-items-center text-xs font-black shadow-sm">
-                YG
-              </span>
+              {content.logoImageUrl ? (
+                <img
+                  src={content.logoImageUrl}
+                  alt={content.brandName || content.name}
+                  className="h-8 w-8 rounded-lg object-cover shadow-sm border border-white/10"
+                />
+              ) : (
+                <span className="h-8 w-8 rounded-lg bg-accent text-accent-foreground grid place-items-center text-xs font-black shadow-sm">
+                  {content.logoText || "YG"}
+                </span>
+              )}
               <span className="hidden sm:inline font-bold text-sm tracking-tight">
-                {content.name.split(" ").slice(0, 2).join(" ")}
+                {content.brandName || content.name.split(" ").slice(0, 2).join(" ")}
               </span>
             </a>
 
-            {/* Navigation links: About, Projects, Skills, etc. */}
-            <ul className="flex items-center gap-1 text-xs md:text-sm font-medium overflow-x-auto no-scrollbar py-1">
-              {NAV.map((n) => (
-                <li key={n.id}>
-                  <a
-                    href={`#${n.id}`}
-                    onClick={(e) => scrollToSection(e, n.id)}
-                    className={`px-3.5 py-1.5 rounded-full transition-all duration-300 ease-out whitespace-nowrap ${
-                      active === n.id
-                        ? "bg-accent text-accent-foreground font-semibold shadow-sm"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                    }`}
-                  >
-                    {n.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
+            {/* Navigation links with smooth sliding pill indicator */}
+            <div className="relative">
+              <ul
+                ref={navContainerRef}
+                className="relative flex items-center gap-1 text-xs md:text-sm font-medium overflow-x-auto no-scrollbar py-1"
+              >
+                {/* Sliding indicator pill behind active word */}
+                <span
+                  className="nav-pill-sliding pointer-events-none"
+                  style={{
+                    left: `${navPill.left}px`,
+                    width: `${navPill.width}px`,
+                    opacity: navPill.opacity,
+                  }}
+                />
+
+                {NAV.map((n) => {
+                  const isActive = active === n.id;
+                  return (
+                    <li
+                      key={n.id}
+                      className="relative z-10"
+                      ref={(el) => {
+                        // Track the <li> element so offsetLeft is relative to the <ul>
+                        navItemRefs.current[n.id] = el;
+                      }}
+                    >
+                      <a
+                        href={`#${n.id}`}
+                        onClick={(e) => scrollToSection(e, n.id)}
+                        className={`px-3.5 py-1.5 rounded-full transition-colors duration-250 ease-out whitespace-nowrap block font-semibold select-none ${
+                          isActive
+                            ? "text-accent-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {n.label}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
 
             <div className="flex items-center gap-2">
               <a
-                href="#contact"
-                onClick={(e) => scrollToSection(e, "contact")}
+                href={content.connectButtonUrl || "#contact"}
+                onClick={(e) => {
+                  const target = content.connectButtonUrl || "#contact";
+                  if (target.startsWith("#")) {
+                    scrollToSection(e, target.replace("#", ""));
+                  }
+                }}
                 className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-full bg-primary text-primary-foreground hover:opacity-90 hover:scale-105 active:scale-95 transition-all duration-300 shadow-sm"
               >
-                Let's Connect
+                {content.connectButtonText || "Let's Connect"}
               </a>
             </div>
           </nav>
-        </div>
       </header>
 
       <main className="relative z-10">
@@ -468,12 +570,12 @@ function Portfolio() {
           <div className="absolute top-1/4 -left-20 w-72 h-72 rounded-full bg-amber-500/10 blur-3xl pointer-events-none animate-blob-1" />
           <div className="absolute top-1/2 -right-20 w-80 h-80 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none animate-blob-2" />
 
-          <div className="mx-auto max-w-7xl px-6 relative z-10">
+          <div className="w-full px-6 xl:px-12 relative z-10">
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
               <ScrollReveal variant="up" delay={50}>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 border border-amber-400/35 text-amber-300 text-[11px] font-bold tracking-widest uppercase mb-3.5 shadow-sm">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  Portfolio 2026
+                  {content.heroBadgeText || "Portfolio 2026"}
                 </div>
 
                 <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1]">
@@ -497,7 +599,7 @@ function Portfolio() {
                     <span className="text-sm group-hover:translate-y-0.5 transition-transform">
                       ⬇
                     </span>
-                    <span>Download Resume</span>
+                    <span>{content.resumeButtonText || "Download Resume"}</span>
                     <span className="text-xs opacity-75 font-normal ml-0.5">↗</span>
                   </a>
                   <a
@@ -505,7 +607,7 @@ function Portfolio() {
                     onClick={(e) => scrollToSection(e, "projects")}
                     className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-card/90 border border-white/15 text-white font-semibold text-xs hover:bg-muted/90 transition duration-300 shadow-sm hover:border-accent/40 cursor-pointer"
                   >
-                    View Projects ↓
+                    {content.projectsButtonText || "View Projects ↓"}
                   </a>
                 </div>
 
@@ -633,7 +735,7 @@ function Portfolio() {
           {/* Subtle animated background orbs */}
           <div className="absolute top-1/3 -right-24 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none animate-blob-2" />
 
-          <div className="mx-auto max-w-7xl px-6 relative z-10">
+          <div className="w-full px-6 xl:px-12 relative z-10">
             {/* Top Grid: Narrative & Quote/Stats */}
             <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
               {/* Left Column (7 cols): Detailed Narrative */}
@@ -785,7 +887,7 @@ function Portfolio() {
           {/* Subtle animated background orbs */}
           <div className="absolute top-1/2 -left-24 w-80 h-80 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none animate-blob-1" />
 
-          <div className="mx-auto max-w-7xl px-6 relative z-10">
+          <div className="w-full px-6 xl:px-12 relative z-10">
             <ScrollReveal variant="up">
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
@@ -798,6 +900,38 @@ function Portfolio() {
                   </h2>
                 </div>
                 <div className="flex items-center gap-2.5 flex-wrap">
+                  {/* Circular Carousel Controls */}
+                  <div className="flex items-center gap-1.5 bg-card/80 border border-white/10 rounded-full px-2 py-1 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => handleCarouselScroll("left")}
+                      className="h-7 w-7 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-sm font-bold text-white/80 hover:text-white transition active:scale-90"
+                      title="Scroll Left"
+                      aria-label="Scroll Left"
+                    >
+                      &lt;
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsMarqueePaused((prev) => !prev)}
+                      className="px-2 py-0.5 rounded-full text-[11px] font-mono text-slate-300 hover:text-white bg-white/5 hover:bg-white/15 transition flex items-center gap-1"
+                      title={isMarqueePaused ? "Resume circle rotation" : "Pause circle rotation"}
+                      aria-label={isMarqueePaused ? "Resume circle rotation" : "Pause circle rotation"}
+                    >
+                      <span>{isMarqueePaused ? "▶" : "⏸"}</span>
+                      <span className="hidden sm:inline text-[10px]">{isMarqueePaused ? "Play" : "Pause"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCarouselScroll("right")}
+                      className="h-7 w-7 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-sm font-bold text-white/80 hover:text-white transition active:scale-90"
+                      title="Scroll Right"
+                      aria-label="Scroll Right"
+                    >
+                      &gt;
+                    </button>
+                  </div>
+
                   <a
                     href={content.viewAllProjectsUrl || content.resumeUrl}
                     target="_blank"
@@ -810,75 +944,107 @@ function Portfolio() {
               </div>
             </ScrollReveal>
 
-            <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {content.projects.map((p, idx) => (
-                <ScrollReveal key={p.t + idx} variant="up" delay={idx * 80}>
-                  <article
-                    className="rounded-3xl card-soft overflow-hidden hover:shadow-lift hover:-translate-y-2 transition-all duration-300 h-full flex flex-col backdrop-blur-md bg-card/90 border border-white/10 hover:border-amber-400/50 group card-ambient-breathe cursor-pointer"
-                    onClick={() => setSelectedProject(p)}
-                    tabIndex={0}
-                    role="button"
-                    onKeyDown={(e) => e.key === "Enter" && setSelectedProject(p)}
-                    aria-label={`View ${p.t} case study`}
-                  >
-                    {/* Project image or gradient fallback */}
-                    <div
-                      className={`h-36 relative overflow-hidden ${!p.img ? `bg-gradient-to-br ${p.grad || "from-chart-4/30 to-accent/40"}` : ""}`}
-                    >
-                      {p.img ? (
-                        <img
-                          src={p.img}
-                          alt={p.t}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                          onError={(e) => {
-                            const el = e.target as HTMLImageElement;
-                            el.style.display = "none";
-                            if (el.parentElement) {
-                              el.parentElement.className = `h-36 relative overflow-hidden bg-gradient-to-br ${p.grad || "from-chart-4/30 to-accent/40"}`;
-                            }
-                          }}
-                        />
-                      ) : null}
-                      {/* Gradient overlay on image for better text contrast */}
-                      {p.img && (
-                        <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent" />
-                      )}
-                      {/* Case file badge */}
-                      <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm border border-white/10 text-[10px] font-bold text-white/80 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <span>📂</span> Case Study
-                      </div>
-                    </div>
-                    <div className="p-5 flex-1 flex flex-col justify-between">
-                      <div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {p.tags.map((t) => (
-                            <span
-                              key={t}
-                              className="text-[11px] px-2.5 py-0.5 rounded-lg bg-cyan-950/70 text-cyan-300 font-bold border border-cyan-500/30"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                        <h3 className="mt-3 font-bold text-base leading-snug text-white group-hover:text-amber-300 transition-colors">
-                          {p.t}
-                        </h3>
-                        <p className="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed">{p.d}</p>
-                      </div>
-                      <div className="mt-5 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-400 group-hover:text-amber-300 group-hover:translate-x-1 transition-all duration-200">
-                        View Case Study <span>→</span>
-                      </div>
-                    </div>
-                  </article>
-                </ScrollReveal>
-              ))}
+            {/* AUTOMATED HORIZONTAL CIRCULAR PROJECTS CAROUSEL */}
+            <div className="relative mt-10 -mx-6 px-6 overflow-hidden group/track">
+              {/* Left & Right gradient edge fades for smooth infinite circle effect */}
+              <div className="absolute top-0 bottom-0 left-0 w-12 sm:w-20 bg-gradient-to-r from-background via-background/60 to-transparent z-10 pointer-events-none" />
+              <div className="absolute top-0 bottom-0 right-0 w-12 sm:w-20 bg-gradient-to-l from-background via-background/60 to-transparent z-10 pointer-events-none" />
+
+              {/* Scrollable track — overflow:hidden hides the native scrollbar line completely */}
+              <div
+                ref={carouselTrackRef}
+                className="overflow-hidden py-4"
+              >
+                <div
+                  className={`animate-marquee-circle flex gap-6 ${isMarqueePaused ? "is-paused" : ""}`}
+                  onMouseEnter={() => setIsMarqueePaused(true)}
+                  onMouseLeave={() => setIsMarqueePaused(false)}
+                >
+                  {/* Render 3 copies of projects array for seamless circular looping */}
+                  {[0, 1, 2].flatMap((loopIdx) =>
+                    content.projects.map((p, idx) => {
+                      const outsideTitle = getProjectOutsideTitle(p);
+                      const outsideDesc = getProjectOutsideDesc(p);
+                      const projectImgs = getProjectImages(p);
+                      const coverImg = projectImgs[0] || p.img;
+
+                      return (
+                        <article
+                          key={`${loopIdx}-${p.t}-${idx}`}
+                          className="w-[300px] sm:w-[340px] shrink-0 rounded-3xl card-soft overflow-hidden hover:shadow-lift hover:-translate-y-2 transition-all duration-300 flex flex-col backdrop-blur-md bg-card/90 border border-white/10 hover:border-amber-400/50 group card-ambient-breathe cursor-pointer select-none"
+                          onClick={() => setSelectedProject(p)}
+                          tabIndex={0}
+                          role="button"
+                          onKeyDown={(e) => e.key === "Enter" && setSelectedProject(p)}
+                          aria-label={`View ${outsideTitle} case study`}
+                        >
+                          {/* Project image or gradient fallback */}
+                          <div
+                            className={`h-40 relative overflow-hidden ${!coverImg ? `bg-gradient-to-br ${p.grad || "from-chart-4/30 to-accent/40"}` : ""}`}
+                          >
+                            {coverImg ? (
+                              <img
+                                src={coverImg}
+                                alt={outsideTitle}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                                onError={(e) => {
+                                  const el = e.target as HTMLImageElement;
+                                  el.style.display = "none";
+                                  if (el.parentElement) {
+                                    el.parentElement.className = `h-40 relative overflow-hidden bg-gradient-to-br ${p.grad || "from-chart-4/30 to-accent/40"}`;
+                                  }
+                                }}
+                              />
+                            ) : null}
+                            {/* Gradient overlay on image */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-transparent to-transparent" />
+                            {/* Case file badge */}
+                            <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-md bg-black/70 backdrop-blur-sm border border-white/10 text-[10px] font-bold text-white/90 flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
+                              <span>📁</span> Case Study
+                            </div>
+                            {projectImgs.length > 1 && (
+                              <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-sm border border-white/10 text-[10px] font-mono text-cyan-300 flex items-center gap-1">
+                                <span>📷</span> {projectImgs.length}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-5 flex-1 flex flex-col justify-between">
+                            <div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {p.tags.slice(0, 4).map((t) => (
+                                  <span
+                                    key={t}
+                                    className="text-[11px] px-2.5 py-0.5 rounded-lg bg-cyan-950/70 text-cyan-300 font-bold border border-cyan-500/30"
+                                  >
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                              <h3 className="mt-3 font-bold text-base leading-snug text-white group-hover:text-amber-300 transition-colors line-clamp-1">
+                                {outsideTitle}
+                              </h3>
+                              <p className="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed line-clamp-3">
+                                {outsideDesc}
+                              </p>
+                            </div>
+                            <div className="mt-5 inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-400 group-hover:text-amber-300 group-hover:translate-x-1 transition-all duration-200">
+                              View Case Study <span>→</span>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    }),
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
         {/* SKILLS */}
         <section id="skills" className="py-16 md:py-20 scroll-mt-20 relative overflow-hidden">
-          <div className="mx-auto max-w-7xl px-6">
+          <div className="w-full px-6 xl:px-12">
             <ScrollReveal variant="up">
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
@@ -913,7 +1079,7 @@ function Portfolio() {
           {/* Subtle animated background orbs */}
           <div className="absolute top-1/2 -right-20 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl pointer-events-none animate-blob-2" />
 
-          <div className="mx-auto max-w-7xl px-6 relative z-10">
+          <div className="w-full px-6 xl:px-12 relative z-10">
             <ScrollReveal variant="up">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 border border-amber-400/35 text-amber-300 text-[11px] font-bold tracking-widest uppercase mb-3 shadow-sm">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -965,7 +1131,7 @@ function Portfolio() {
 
         {/* CERTIFICATIONS */}
         <section id="certifications" className="py-16 md:py-20 scroll-mt-20 relative overflow-hidden">
-          <div className="mx-auto max-w-7xl px-6">
+          <div className="w-full px-6 xl:px-12">
             <ScrollReveal variant="up">
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
@@ -1035,7 +1201,7 @@ function Portfolio() {
 
         {/* CONTACT */}
         <section id="contact" className="py-16 md:py-20 scroll-mt-20 relative overflow-hidden">
-          <div className="mx-auto max-w-7xl px-6">
+          <div className="w-full px-6 xl:px-12">
             <ScrollReveal variant="up">
               <div className="rounded-[2.5rem] bg-card/90 border border-white/10 text-foreground p-7 md:p-10 lg:p-12 grid lg:grid-cols-3 gap-8 shadow-lift relative overflow-hidden backdrop-blur-xl card-ambient-breathe">
                 <div className="relative z-10">
@@ -1097,7 +1263,7 @@ function Portfolio() {
 
       {/* FOOTER */}
       <footer className="relative z-10 bg-transparent">
-        <div className="mx-auto max-w-7xl px-6 py-8 flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
+        <div className="w-full px-6 xl:px-12 py-8 flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
           <span className="flex items-center gap-2.5 font-medium text-foreground">
             <span className="h-7 w-7 rounded-lg bg-accent text-accent-foreground grid place-items-center text-[10px] font-black shadow-sm">
               YG
@@ -1211,22 +1377,51 @@ function ProjectDetailModal({
   resumeUrl: string;
   onClose: () => void;
 }) {
+  // 3-Image Circular Carousel state
+  const images = getProjectImages(project);
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
+  const [isAutoRotatePaused, setIsAutoRotatePaused] = useState(false);
+
+  // Reset active image when project changes
+  useEffect(() => {
+    setActiveImageIdx(0);
+  }, [project.t]);
+
+  // Automated circular rotation for the 3 images (every 3.8s)
+  useEffect(() => {
+    if (images.length <= 1 || isAutoRotatePaused) return;
+
+    const timer = setInterval(() => {
+      setActiveImageIdx((prev) => (prev + 1) % images.length);
+    }, 3800);
+
+    return () => clearInterval(timer);
+  }, [images.length, isAutoRotatePaused]);
+
   // Close on Escape key, navigate on arrow keys
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft" && onSelectProject && projects.length > 1) {
-        const prevIdx = (currentIndex - 1 + projects.length) % projects.length;
-        onSelectProject(projects[prevIdx]);
+      if (e.key === "ArrowLeft") {
+        if (images.length > 1) {
+          setActiveImageIdx((prev) => (prev - 1 + images.length) % images.length);
+        } else if (onSelectProject && projects.length > 1) {
+          const prevIdx = (currentIndex - 1 + projects.length) % projects.length;
+          onSelectProject(projects[prevIdx]);
+        }
       }
-      if (e.key === "ArrowRight" && onSelectProject && projects.length > 1) {
-        const nextIdx = (currentIndex + 1) % projects.length;
-        onSelectProject(projects[nextIdx]);
+      if (e.key === "ArrowRight") {
+        if (images.length > 1) {
+          setActiveImageIdx((prev) => (prev + 1) % images.length);
+        } else if (onSelectProject && projects.length > 1) {
+          const nextIdx = (currentIndex + 1) % projects.length;
+          onSelectProject(projects[nextIdx]);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, onSelectProject, currentIndex, projects]);
+  }, [onClose, onSelectProject, currentIndex, projects, images.length]);
 
   // Prevent background scroll while open
   useEffect(() => {
@@ -1241,14 +1436,30 @@ function ProjectDetailModal({
   const totalNum = String(total).padStart(2, "0");
   const primaryTag = project.tags[0] || "Analytics";
 
-  const handlePrev = () => {
+  // Separate Inside vs Outside text
+  const insideTitle = getProjectInsideTitle(project);
+  const insideDesc = getProjectInsideDesc(project);
+
+  const handlePrevImage = () => {
+    if (images.length > 0) {
+      setActiveImageIdx((prev) => (prev - 1 + images.length) % images.length);
+    }
+  };
+
+  const handleNextImage = () => {
+    if (images.length > 0) {
+      setActiveImageIdx((prev) => (prev + 1) % images.length);
+    }
+  };
+
+  const handlePrevProject = () => {
     if (onSelectProject && projects.length > 1) {
       const idx = (currentIndex - 1 + projects.length) % projects.length;
       onSelectProject(projects[idx]);
     }
   };
 
-  const handleNext = () => {
+  const handleNextProject = () => {
     if (onSelectProject && projects.length > 1) {
       const idx = (currentIndex + 1) % projects.length;
       onSelectProject(projects[idx]);
@@ -1283,17 +1494,17 @@ function ProjectDetailModal({
               <>
                 <button
                   type="button"
-                  onClick={handlePrev}
+                  onClick={handlePrevProject}
                   className="h-7 w-7 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-xs text-white/70 hover:text-white transition active:scale-95"
-                  title="Previous Project (Left Arrow)"
+                  title="Previous Project"
                 >
                   ‹
                 </button>
                 <button
                   type="button"
-                  onClick={handleNext}
+                  onClick={handleNextProject}
                   className="h-7 w-7 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-xs text-white/70 hover:text-white transition active:scale-95"
-                  title="Next Project (Right Arrow)"
+                  title="Next Project"
                 >
                   ›
                 </button>
@@ -1312,8 +1523,12 @@ function ProjectDetailModal({
 
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 min-h-0">
-          {/* Browser / Mockup Showcase Area */}
-          <div className="relative mx-4 sm:mx-6 mt-5 rounded-2xl border border-white/10 bg-[#12121a] overflow-hidden shadow-2xl">
+          {/* Browser / Mockup Showcase Area with 3-Image Circular Auto-Rotate */}
+          <div
+            className="relative mx-4 sm:mx-6 mt-5 rounded-2xl border border-white/10 bg-[#12121a] overflow-hidden shadow-2xl group/showcase"
+            onMouseEnter={() => setIsAutoRotatePaused(true)}
+            onMouseLeave={() => setIsAutoRotatePaused(false)}
+          >
             {/* Browser Window Header */}
             <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-[#181824]/90 text-xs">
               <div className="flex items-center gap-1.5">
@@ -1321,32 +1536,41 @@ function ProjectDetailModal({
                 <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" />
                 <span className="ml-2 px-2.5 py-0.5 rounded bg-black/40 text-[10px] font-mono text-slate-400 border border-white/5 truncate max-w-[200px]">
-                  {primaryTag.toUpperCase()} · PLATFORM
+                  {project.platform ? project.platform.toUpperCase() : `${primaryTag.toUpperCase()} · PLATFORM`}
                 </span>
               </div>
-              <div className="text-[10px] font-mono text-slate-500">
-                https://portfolio.ganesh/project/{project.t.toLowerCase().replace(/[^a-z0-9]/g, "-")}
+              <div className="text-[10px] font-mono text-slate-500 truncate max-w-[280px]">
+                {project.modalUrl || `https://portfolio.ganesh/project/${insideTitle.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}
               </div>
             </div>
 
             {/* Main Showcase Image / Interactive Screen */}
             <div className="relative h-48 sm:h-64 w-full bg-gradient-to-br from-black/80 via-[#13141f] to-[#1c1c2b] flex items-center justify-center overflow-hidden">
-              {project.img ? (
-                <img
-                  src={project.img}
-                  alt={project.t}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
+              {images.length > 0 ? (
+                images.map((imgSrc, imgIdx) => (
+                  <div
+                    key={imgIdx}
+                    className={`absolute inset-0 transition-opacity duration-700 ease-in-out flex items-center justify-center ${
+                      imgIdx === activeImageIdx ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+                    }`}
+                  >
+                    <img
+                      src={imgSrc}
+                      alt={`${insideTitle} - screenshot ${imgIdx + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                ))
               ) : (
-                /* Sleek High-Tech Dashboard Mockup matching screenshot */
+                /* Sleek High-Tech Dashboard Mockup matching user screenshot */
                 <div className="w-full h-full p-4 sm:p-6 flex flex-col justify-between relative select-none">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">📊</span>
-                      <span className="text-sm font-bold text-white tracking-wide">{project.t}</span>
+                      <span className="text-sm font-bold text-white tracking-wide">{insideTitle}</span>
                     </div>
                     <span className="px-2.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold">
                       ● LIVE SYSTEM
@@ -1356,41 +1580,56 @@ function ProjectDetailModal({
                   {/* High-tech dashboard visualization cards */}
                   <div className="grid grid-cols-3 gap-2 my-auto">
                     <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
-                      <div className="text-[9px] font-mono text-slate-400">ANALYTICS ENGINE</div>
-                      <div className="text-xs font-bold text-amber-300 mt-1 truncate">{primaryTag}</div>
+                      <div className="text-[9px] font-mono text-slate-400">
+                        {project.metric1Label || "ANALYTICS ENGINE"}
+                      </div>
+                      <div className="text-xs font-bold text-amber-300 mt-1 truncate">
+                        {project.metric1Value || primaryTag}
+                      </div>
                     </div>
                     <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
-                      <div className="text-[9px] font-mono text-slate-400">DATA ACCURACY</div>
-                      <div className="text-xs font-bold text-emerald-400 mt-1">99.8% Verified</div>
+                      <div className="text-[9px] font-mono text-slate-400">
+                        {project.metric2Label || "DATA ACCURACY"}
+                      </div>
+                      <div className="text-xs font-bold text-emerald-400 mt-1">
+                        {project.metric2Value || "99.8% Verified"}
+                      </div>
                     </div>
                     <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
-                      <div className="text-[9px] font-mono text-slate-400">COMPONENTS</div>
-                      <div className="text-xs font-bold text-cyan-300 mt-1">{project.tags.length} Modules</div>
+                      <div className="text-[9px] font-mono text-slate-400">
+                        {project.metric3Label || "COMPONENTS"}
+                      </div>
+                      <div className="text-xs font-bold text-cyan-300 mt-1">
+                        {project.metric3Value || `${project.tags.length} Modules`}
+                      </div>
                     </div>
                   </div>
 
+                  {/* Progress bar matching screenshot */}
                   <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
-                    <div className="h-full w-2/3 bg-gradient-to-r from-amber-500 to-rose-500 rounded-full" />
+                    <div className="h-full w-2/3 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-400 rounded-full" />
                   </div>
                 </div>
               )}
 
-              {/* Carousel Side Arrows */}
-              {projects.length > 1 && (
+              {/* 3-Image Carousel Left / Right Circular Navigation Arrows */}
+              {images.length > 1 && (
                 <>
                   <button
                     type="button"
-                    onClick={handlePrev}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-black/60 hover:bg-black/90 border border-white/15 text-white flex items-center justify-center text-sm backdrop-blur transition active:scale-95"
-                    aria-label="Previous Project"
+                    onClick={handlePrevImage}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full bg-black/60 hover:bg-black/90 border border-white/15 text-white flex items-center justify-center text-sm backdrop-blur transition active:scale-95"
+                    aria-label="Previous Image"
+                    title="Previous Image (Loop Circle)"
                   >
                     ‹
                   </button>
                   <button
                     type="button"
-                    onClick={handleNext}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-black/60 hover:bg-black/90 border border-white/15 text-white flex items-center justify-center text-sm backdrop-blur transition active:scale-95"
-                    aria-label="Next Project"
+                    onClick={handleNextImage}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full bg-black/60 hover:bg-black/90 border border-white/15 text-white flex items-center justify-center text-sm backdrop-blur transition active:scale-95"
+                    aria-label="Next Image"
+                    title="Next Image (Loop Circle)"
                   >
                     ›
                   </button>
@@ -1398,65 +1637,68 @@ function ProjectDetailModal({
               )}
             </div>
 
-            {/* 3 Thumbnail preview indicators at the bottom */}
-            <div className="flex items-center justify-center gap-2 py-2 bg-black/40 border-t border-white/5">
-              {projects.slice(0, 3).map((p, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => onSelectProject && onSelectProject(p)}
-                  className={`h-6 px-3 rounded-md text-[10px] font-mono font-bold transition flex items-center gap-1.5 border ${
-                    p.t === project.t
-                      ? "bg-rose-500/20 text-rose-300 border-rose-500/60 shadow-[0_0_10px_rgba(244,63,94,0.3)]"
-                      : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
-                  }`}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                  <span className="truncate max-w-[80px]">{p.t}</span>
-                </button>
-              ))}
+            {/* 3 Interactive Indicator Pills at the bottom matching reference image */}
+            <div className="flex items-center justify-center gap-2 py-2.5 bg-black/50 border-t border-white/5 px-3">
+              {(images.length > 0 ? images : [1, 2, 3]).slice(0, 3).map((_, idx) => {
+                const isActive = idx === activeImageIdx;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveImageIdx(idx)}
+                    className={`h-6 px-3 rounded-md text-[10px] font-mono font-bold transition flex items-center gap-1.5 border ${
+                      isActive
+                        ? "bg-rose-500/20 text-rose-300 border-rose-500/60 shadow-[0_0_10px_rgba(244,63,94,0.35)]"
+                        : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-rose-400 animate-pulse" : "bg-current"}`} />
+                    <span>{`Image 0${idx + 1}`}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Project Details section matching reference screenshot */}
+          {/* Project Details section with separate inside title & description */}
           <div className="px-5 sm:px-7 py-5 space-y-4">
-            {/* Red Year Tag + Title */}
+            {/* Red Year Tag + Inside Title */}
             <div>
               <div className="text-rose-500 font-mono text-xs font-bold tracking-wider mb-1">
                 / {project.year || "2025"}
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
-                {project.t}
+                {insideTitle}
               </h2>
               <p className="mt-2 text-sm text-slate-300 leading-relaxed font-normal">
-                {project.d}
+                {insideDesc}
               </p>
             </div>
 
-            {/* 3 Top Spec Boxes matching screenshot */}
+            {/* 3 Top Spec Boxes matching user screenshot */}
             <div className="grid grid-cols-3 gap-2.5">
               <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
                 <div className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-1">
-                  {primaryTag.includes("BI") || primaryTag.includes("Power") ? "AI MODEL / TOOL" : "PLATFORM"}
+                  {project.metric1Label || (primaryTag.includes("BI") || primaryTag.includes("Power") ? "AI MODEL / TOOL" : "PLATFORM")}
                 </div>
                 <div className="text-xs sm:text-sm font-bold text-white truncate">
-                  {project.model || project.tags[0] || "Custom Engine"}
+                  {project.metric1Value || project.model || project.tags[0] || "Custom Engine"}
                 </div>
               </div>
               <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
                 <div className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-1">
-                  AUTH / CLIENT
+                  {project.metric2Label || "AUTH / CLIENT"}
                 </div>
                 <div className="text-xs sm:text-sm font-bold text-white truncate">
-                  {project.client || "Personal Project"}
+                  {project.metric2Value || project.client || "Personal Project"}
                 </div>
               </div>
               <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
                 <div className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-1">
-                  FEATURES
+                  {project.metric3Label || "FEATURES"}
                 </div>
                 <div className="text-xs sm:text-sm font-bold text-white truncate">
-                  {project.tags.length} specs
+                  {project.metric3Value || `${project.tags.length} specs`}
                 </div>
               </div>
             </div>
@@ -1529,7 +1771,7 @@ function ProjectDetailModal({
             rel="noopener noreferrer"
             className="px-6 py-3.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-white font-bold text-sm text-center active:scale-98 transition flex items-center justify-center gap-2"
           >
-            <span>⌥</span>
+            <span>💻</span>
             <span>SOURCE</span>
           </a>
         </div>
@@ -1620,3 +1862,4 @@ function InfoItem({ icon, k, v, href }: { icon: string; k: string; v: string; hr
     </div>
   );
 }
+

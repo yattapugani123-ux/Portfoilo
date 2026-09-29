@@ -176,13 +176,14 @@ export function AiBackground() {
 
           if (dist < maxConnectDist) {
             const distRatio = 1 - dist / maxConnectDist;
-            const lineAlpha = (distRatio * 0.18 * (a.depth === 1 && b.depth === 1 ? 1 : 0.4)).toFixed(3);
+            // Reduced from 0.18 → 0.06 to eliminate the faint white horizontal lines
+            const lineAlpha = (distRatio * 0.06 * (a.depth === 1 && b.depth === 1 ? 1 : 0.3)).toFixed(3);
 
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
             ctx.strokeStyle = `${a.color}${lineAlpha})`;
-            ctx.lineWidth = distRatio * 1.2;
+            ctx.lineWidth = distRatio * 0.8;
             ctx.stroke();
 
             if (a.depth === 1 && b.depth === 1) {

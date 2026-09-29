@@ -1,9 +1,9 @@
 {
-  "updatedAt": 1790156834484,
+  "updatedAt": 1790663404598,
   "name": "Yattapu Ganesh Kumar Reddy",
   "roles": "Data Analyst | Power BI Developer | UI/UX Designer",
   "bio": "Bridging the gap between raw data and strategic business decisions. I architect intuitive Power BI dashboards, conduct in-depth SQL & Python analytics, and design human-centered UI/UX experiences that transform complex metrics into actionable clarity.",
-  "resumeUrl": "https://drive.google.com/drive/folders/16Nog2CQTeKkkRSgY3Vjsf44GiOaEv_7z?usp=sharing",
+  "resumeUrl": "https://drive.google.com/file/d/1vONk4mWtp4V6_-Vr0YeD3kerLli25C7E/view?usp=sharing",
   "viewAllProjectsText": "View All Projects →",
   "viewAllProjectsUrl": "https://drive.google.com/drive/folders/16Nog2CQTeKkkRSgY3Vjsf44GiOaEv_7z?usp=sharing",
   "aboutHeadline": "Transforming Complex Data into Strategic Clarity & Human-Centered Experiences",
@@ -104,31 +104,71 @@
   ],
   "projects": [
     {
-      "t": "E-Commerce Sales Analysis",
-      "d": "Interactive dashboard to track sales, profit, customer behavior and product performance.",
+      "t": "Web-Development-Analysis",
+      "d": "Analyzed 50,000+ entry-level job postings across India to identify hiring trends, in-demand roles, salary patterns, top companies, locations, and employer requirements, presenting key insights through an interactive dashboard.",
       "tags": [
         "Power BI",
-        "Data Analytics"
+        "Data Analytics",
+        "Looker Studio",
+        "Excel",
+        "Tableau",
+        "Figma",
+        "Python"
       ],
-      "grad": "from-chart-4/30 to-accent/40"
+      "grad": "from-chart-4/30 to-accent/40",
+      "img": "",
+      "outsideTitle": "Web-Development-Analysis",
+      "outsideDescription": "Analyzed 50,000+ entry-level job postings across India to identify hiring trends, in-demand roles, salary patterns, top companies, locations, and employer requirements, presenting key insights through an interactive dashboard.",
+      "insideTitle": "Web-Development-Analysis",
+      "insideDescription": "Analyzed 50,000+ entry-level job postings across India to identify hiring trends, in-demand roles, salary patterns, top companies, locations, and employer requirements, presenting key insights through an interactive dashboard.",
+      "images": [
+        "",
+        "",
+        ""
+      ]
     },
     {
-      "t": "Job Market Analysis (India)",
+      "t": "MIS Job Market Analysis (India)",
       "d": "Scraped and analysed 50K+ job postings to find hiring trends, top skills and salary insights.",
       "tags": [
         "Looker Studio",
-        "Web Scraping"
+        "Web Scraping",
+        "Excel",
+        "Python",
+        "Figma",
+        "Google sheet"
       ],
-      "grad": "from-ink to-primary/80"
+      "grad": "from-ink to-primary/80",
+      "img": "",
+      "outsideTitle": "MIS Job Market Analysis (India)",
+      "outsideDescription": "Scraped and analysed 50K+ job postings to find hiring trends, top skills and salary insights.",
+      "insideTitle": "MIS Job Market Analysis (India)",
+      "insideDescription": "Scraped and analysed 50K+ job postings to find hiring trends, top skills and salary insights.",
+      "images": [
+        "",
+        "",
+        ""
+      ]
     },
     {
-      "t": "Dashboard UI Design",
-      "d": "Modern and intuitive dashboard design template created in Figma.",
+      "t": "Supermarket Analytics",
+      "d": "Designed a modern  Supermarket Analytics platform  that transforms sales data into clear, actionable business insights.\nCreated intuitive dashboards for  sales, products, stores, customers, insights, and alerts , focused on simple decision-making and usability. ",
       "tags": [
         "Figma",
         "UI/UX"
       ],
-      "grad": "from-sage/40 to-chart-4/25"
+      "grad": "from-sage/40 to-chart-4/25",
+      "link": "https://www.figma.com/proto/BVI3ymv0O50F3VU4aA93Ta/Untitled?t=KQmGGHpAP6UcYrBf-1&scaling=min-zoom&content-scaling=fixed&page-id=0%3A1&node-id=22-4943&starting-point-node-id=22%3A4943",
+      "img": "https://cdn.corenexis.com/f/T4R6XXTv4hs.png",
+      "outsideTitle": "Supermarket Analytics",
+      "outsideDescription": "Designed a modern  Supermarket Analytics platform  that transforms sales data into clear, actionable business insights.\nCreated intuitive dashboards for  sales, products, stores, customers, insights, and alerts , focused on simple decision-making and usability. ",
+      "insideTitle": "Supermarket Analytics",
+      "insideDescription": "Designed a modern  Supermarket Analytics platform  that transforms sales data into clear, actionable business insights.\nCreated intuitive dashboards for  sales, products, stores, customers, insights, and alerts , focused on simple decision-making and usability. ",
+      "images": [
+        "https://cdn.corenexis.com/f/T4R6XXTv4hs.png",
+        "",
+        ""
+      ]
     },
     {
       "t": "Mobile App Concept",
@@ -137,7 +177,17 @@
         "Figma",
         "Product Design"
       ],
-      "grad": "from-accent/30 to-sand"
+      "grad": "from-accent/30 to-sand",
+      "img": "",
+      "outsideTitle": "Mobile App Concept",
+      "outsideDescription": "Clean and minimal mobile app UI for a productivity platform.",
+      "insideTitle": "Mobile App Concept",
+      "insideDescription": "Clean and minimal mobile app UI for a productivity platform.",
+      "images": [
+        "",
+        "",
+        ""
+      ]
     }
   ],
   "journey": [
@@ -145,8 +195,8 @@
       "icon": "💼",
       "role": "Data Analyst Intern",
       "co": "Analytics Career Connect (ACC)",
-      "date": "Mar 2026 – Present",
-      "desc": "Working in a professional analytics environment, building real-world dashboards and conducting data-driven analysis to support business decision-making.",
+      "date": "Mar 2026 – Aug 2026",
+      "desc": "Worked as a Data Analyst Intern on real-world job-market data.\nAnalyzed 50,000+ entry-level job postings to identify hiring trends.\nCreated interactive dashboards and reports to communicate insights.\nDelivered data-driven insights on roles, skills, salaries, companies, and locations.",
       "points": [
         "Built Power BI dashboards for real business datasets",
         "Performed advanced data cleaning, EDA and visualization",
@@ -155,8 +205,8 @@
     },
     {
       "icon": "🎓",
-      "role": "B.Tech – CSE (Data Science)",
-      "co": "Vemu Institute of Technology, Kadapa",
+      "role": "Graphic Designer",
+      "co": "ACM - W",
       "date": "2023 – 2027",
       "desc": "Pursuing a 4-year undergraduate degree specializing in Data Science, studying machine learning, database systems, analytics, and software engineering fundamentals.",
       "points": [
