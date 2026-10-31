@@ -1,6 +1,6 @@
 {
-  "updatedAt": 1790663404598,
-  "name": "Yattapu Ganesh Kumar Reddy",
+  "updatedAt": 1790682677376,
+  "name": "Yattapu Ganesh Kumar  Reddy",
   "roles": "Data Analyst | Power BI Developer | UI/UX Designer",
   "bio": "Bridging the gap between raw data and strategic business decisions. I architect intuitive Power BI dashboards, conduct in-depth SQL & Python analytics, and design human-centered UI/UX experiences that transform complex metrics into actionable clarity.",
   "resumeUrl": "https://drive.google.com/file/d/1vONk4mWtp4V6_-Vr0YeD3kerLli25C7E/view?usp=sharing",
@@ -179,10 +179,10 @@
       ],
       "grad": "from-accent/30 to-sand",
       "img": "",
+      "insideDescription": "Clean and minimal mobile app UI for a productivity platform.Clean and minimal mobile app UI for a productivity platform.Clean and minimal mobile app UI for a productivity platform.Clean and minimal mobile app UI for a productivity platform.Clean and minimal mobile app UI for a productivity platform.Clean and minimal mobile app UI for a productivity platform.Clean and minimal mobile app UI for a productivity platform.",
       "outsideTitle": "Mobile App Concept",
       "outsideDescription": "Clean and minimal mobile app UI for a productivity platform.",
       "insideTitle": "Mobile App Concept",
-      "insideDescription": "Clean and minimal mobile app UI for a productivity platform.",
       "images": [
         "",
         "",
@@ -205,7 +205,7 @@
     },
     {
       "icon": "🎓",
-      "role": "Graphic Designer",
+      "role": "Graphic Desiner",
       "co": "ACM - W",
       "date": "2023 – 2027",
       "desc": "Pursuing a 4-year undergraduate degree specializing in Data Science, studying machine learning, database systems, analytics, and software engineering fundamentals.",

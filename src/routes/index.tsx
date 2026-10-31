@@ -18,6 +18,13 @@ import {
   clearLocalPortfolioCache,
   deduplicateContent,
 } from "@/services/portfolioSync";
+import {
+  trackResumeDownload,
+  trackGitHubClick,
+  trackLinkedInClick,
+  trackProjectView,
+  trackEvent,
+} from "@/lib/analytics";
 
 // Heavy components: loaded after first paint so hero renders instantly
 const AiBackground = lazy(() =>
@@ -594,6 +601,8 @@ function Portfolio() {
                     href={content.resumeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackResumeDownload("hero_resume_button", content.resumeUrl)}
+                    data-ga-handled="true"
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent text-accent-foreground font-bold text-xs sm:text-sm shadow-soft hover:shadow-lift hover:scale-105 active:scale-95 transition-all duration-200 border border-amber-400/40 group"
                   >
                     <span className="text-sm group-hover:translate-y-0.5 transition-transform">
@@ -634,6 +643,11 @@ function Portfolio() {
                         target="_blank"
                         rel="noopener noreferrer"
                         title={s.title}
+                        onClick={() => {
+                          if (s.title === "LinkedIn") trackLinkedInClick("hero_social", s.h);
+                          else if (s.title === "GitHub") trackGitHubClick("hero_social", undefined, s.h);
+                        }}
+                        data-ga-handled="true"
                         className="h-9 w-9 grid place-items-center rounded-xl bg-card border border-white/15 text-white text-xs font-bold shadow-sm hover:bg-primary hover:text-primary-foreground hover:-translate-y-0.5 transition-all"
                       >
                         {s.l}
@@ -936,6 +950,8 @@ function Portfolio() {
                     href={content.viewAllProjectsUrl || content.resumeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackResumeDownload("projects_view_all", content.viewAllProjectsUrl || content.resumeUrl)}
+                    data-ga-handled="true"
                     className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold px-4 py-2 rounded-full bg-card border border-white/15 text-white hover:bg-muted hover:border-amber-400/50 transition-all duration-300 shadow-sm hover:scale-105 active:scale-95"
                   >
                     {content.viewAllProjectsText || "View All Projects →"}
@@ -972,10 +988,18 @@ function Portfolio() {
                         <article
                           key={`${loopIdx}-${p.t}-${idx}`}
                           className="w-[300px] sm:w-[340px] shrink-0 rounded-3xl card-soft overflow-hidden hover:shadow-lift hover:-translate-y-2 transition-all duration-300 flex flex-col backdrop-blur-md bg-card/90 border border-white/10 hover:border-amber-400/50 group card-ambient-breathe cursor-pointer select-none"
-                          onClick={() => setSelectedProject(p)}
+                          onClick={() => {
+                            setSelectedProject(p);
+                            trackProjectView(outsideTitle, p.tags);
+                          }}
                           tabIndex={0}
                           role="button"
-                          onKeyDown={(e) => e.key === "Enter" && setSelectedProject(p)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              setSelectedProject(p);
+                              trackProjectView(outsideTitle, p.tags);
+                            }
+                          }}
                           aria-label={`View ${outsideTitle} case study`}
                         >
                           {/* Project image or gradient fallback */}
@@ -1147,6 +1171,8 @@ function Portfolio() {
                   href={content.resumeUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => trackResumeDownload("certifications_view_all", content.resumeUrl)}
+                  data-ga-handled="true"
                   className="text-xs sm:text-sm text-amber-400 hover:text-amber-300 font-bold transition hover:scale-105"
                 >
                   View All Certificates →
@@ -1224,6 +1250,11 @@ function Portfolio() {
                         target="_blank"
                         rel="noopener noreferrer"
                         title={s.title}
+                        onClick={() => {
+                          if (s.title === "LinkedIn") trackLinkedInClick("footer_social", s.h);
+                          else if (s.title === "GitHub") trackGitHubClick("footer_social", undefined, s.h);
+                        }}
+                        data-ga-handled="true"
                         className="h-10 w-10 grid place-items-center rounded-xl bg-muted/70 border border-white/10 text-xs font-bold hover:bg-accent hover:text-accent-foreground hover:-translate-y-0.5 transition-all duration-200"
                       >
                         {s.l}
@@ -1760,6 +1791,15 @@ function ProjectDetailModal({
             href={project.link || resumeUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => {
+              const url = project.link || resumeUrl;
+              if (url === resumeUrl) {
+                trackResumeDownload("project_modal_demo_fallback", resumeUrl);
+              } else {
+                trackEvent("project_demo_click", { project_title: project.t, link_url: url });
+              }
+            }}
+            data-ga-handled="true"
             className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black font-extrabold text-sm text-center hover:opacity-95 active:scale-98 transition shadow-[0_0_25px_rgba(245,158,11,0.35)] flex items-center justify-center gap-2"
           >
             <span>LIVE DEMO</span>
@@ -1769,6 +1809,11 @@ function ProjectDetailModal({
             href={project.sourceLink || project.link || resumeUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => {
+              const url = project.sourceLink || project.link || resumeUrl;
+              trackGitHubClick("project_modal_source", project.t, url);
+            }}
+            data-ga-handled="true"
             className="px-6 py-3.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-white font-bold text-sm text-center active:scale-98 transition flex items-center justify-center gap-2"
           >
             <span>💻</span>
@@ -1792,6 +1837,7 @@ function ContactForm({ recipientEmail }: { recipientEmail: string }) {
   const [sent, setSent] = useState(false);
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    trackEvent("contact_form_submit");
     const body = `${encodeURIComponent(f.message)}%0D%0A%0D%0A— ${encodeURIComponent(f.name)} (${encodeURIComponent(f.email)})`;
     const subject = encodeURIComponent(f.subject || "Portfolio inquiry");
     window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
