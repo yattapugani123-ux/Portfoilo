@@ -2067,6 +2067,67 @@ export function EditPortfolioModal({
                           }}
                           placeholder="Short description of this role (optional)"
                         />
+
+                        {/* BULLET POINTS EDITOR */}
+                        <div className="pt-2 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                              <span>•</span> Key Achievements / Bullet Points
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...formData.journey];
+                                next[idx] = {
+                                  ...next[idx],
+                                  points: [...(next[idx].points || []), ""],
+                                };
+                                setFormData({ ...formData, journey: next });
+                              }}
+                              className="text-[11px] px-2 py-0.5 rounded-lg bg-accent/20 text-accent border border-accent/30 font-bold hover:bg-accent/30 transition"
+                            >
+                              ➕ Add Bullet
+                            </button>
+                          </div>
+                          <div className="space-y-1.5">
+                            {(j.points || []).map((point, ptIdx) => (
+                              <div key={ptIdx} className="flex items-center gap-2">
+                                <span className="text-accent text-xs shrink-0">•</span>
+                                <input
+                                  type="text"
+                                  className="flex-1 px-2.5 py-1.5 text-xs bg-muted/60 rounded-lg border border-white/10 focus:border-accent focus:outline-none transition text-foreground placeholder:text-muted-foreground/40"
+                                  value={point}
+                                  placeholder={`Achievement or responsibility ${ptIdx + 1}...`}
+                                  onChange={(e) => {
+                                    const next = [...formData.journey];
+                                    const pts = [...(next[idx].points || [])];
+                                    pts[ptIdx] = e.target.value;
+                                    next[idx] = { ...next[idx], points: pts };
+                                    setFormData({ ...formData, journey: next });
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = [...formData.journey];
+                                    const pts = (next[idx].points || []).filter((_, i) => i !== ptIdx);
+                                    next[idx] = { ...next[idx], points: pts };
+                                    setFormData({ ...formData, journey: next });
+                                  }}
+                                  className="text-muted-foreground hover:text-destructive text-xs shrink-0 px-1"
+                                  title="Remove bullet"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                            {(j.points || []).length === 0 && (
+                              <p className="text-[11px] text-muted-foreground/50 italic pl-4">
+                                No bullets yet — click "➕ Add Bullet" to add achievements.
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
